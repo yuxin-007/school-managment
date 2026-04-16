@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center mt-4">
+    <div class="col-md-5">
+        <div class="card">
+            <div class="card-header bg-primary text-white"><h4 class="mb-0">🔐 用户登录</h4></div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('auth.login') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="mb-3">
+                        <label class="form-label">👤 登录账号</label>
+                        <input type="text" class="form-control" name="username" required autofocus placeholder="系统管理员用用户名，其他用户用工号/学号">
+                    </div>
+                    <div class="mb-3"><label class="form-label">🔒 密码</label><input type="password" class="form-control" name="password" required></div>
+                    <button type="submit" class="btn btn-primary w-100 py-2">🚀 登录</button>
+                </form>
+            </div>
+            <div class="card-footer text-muted small">
+                <strong>登录说明：</strong>系统管理员使用用户名登录，其他用户使用工号（教职工）或学号（学生）登录。
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

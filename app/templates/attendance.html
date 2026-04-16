@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+
+{% block title %}考勤打卡 - 学校管理系统{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-6 mx-auto">
+        <h2 class="text-center mb-4"><i class="fas fa-user-check me-2"></i>考勤打卡</h2>
+
+        <!-- 今日状态 -->
+        <div class="card mb-4" id="todayCard">
+            <div class="card-body text-center">
+                <div class="mb-4">
+                    <div id="currentTime" class="display-4 fw-bold"></div>
+                    <div id="currentDate" class="text-muted"></div>
+                </div>
+
+                <div class="mb-4">
+                    <span class="badge bg-secondary fs-6" id="todayStatus">加载中...</span>
+                </div>
+
+                <div class="row text-center mb-4">
+                    <div class="col-6">
+                        <div class="p-3 border rounded bg-light">
+                            <small class="text-muted d-block mb-1">上班打卡</small>
+                            <div class="fs-4 fw-bold" id="clockInTime">--:--</div>
+                            <button class="btn btn-success mt-2 w-100" id="clockInBtn" onclick="clockIn()">
+                                <i class="fas fa-sign-in-alt me-1"></i>打卡上班
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="p-3 border rounded bg-light">
+                            <small class="text-muted d-block mb-1">下班打卡</small>
+                            <div class="fs-4 fw-bold" id="clockOutTime">--:--</div>
+                            <button class="btn btn-danger mt-2 w-100" id="clockOutBtn" onclick="clockOut()">
+                                <i class="fas fa-sign-out-alt me-1"></i>打卡下班
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 考勤状态提示 -->
+                <div id="statusHint" class="alert d-none"></div>
+            </div>
+        </div>
+
+        <!-- 考勤记录 -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-history me-2"></i>近期考勤记录</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>日期</th>
+                                <th>上班</th>
+                                <th>下班</th>
+                                <th>状态</th>
+                            </tr>
+                        </thead>
+                        <tbody id="attendanceTable"></tbody>
+                    </table>
+                </div>
+                <button class="btn btn-outline-primary w-100" onclick="loadMore()">加载更多</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let page = 1;
+
+$(function() {
+    updateTime();
+    setInterval(updateTime, 1000);
+    loadToday();
+    loadHistory();
+});
+
+function updateTime() {
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('zh-CN', {hour: '2-digit', minute: '2-digit', second: '2-digit'});
+    const dateStr = now.toLocaleDateString('zh-CN', {weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'});
+    $('#currentTime').text(timeStr);
+    $('#currentDate').text(dateStr);
+}
+
+function loadToday() {
+    $.get('/attendance/api/attendance/today', function(res) {
+        if (res.success && res.data) {
+            const data = res.data;
+            $('#clockInTime').text(data.clock_in ? data.clock_in.split(' ')[1].substring(0, 5) : '--:--');
+            $('#clockOutTime').text(data.clock_out ? data.clock_out.split(' ')[1].substring(0, 5) : '--:--');
+
+            $('#clockInBtn').prop('disabled', !!data.clock_in);
+            $('#clockOutBtn').prop('disabled', !!data.clock_out || !data.clock_in);
+
+            const statusMap = {
+                'normal': {class: 'bg-success', text: '正常'},
+                'late': {class: 'bg-warning text-dark', text: '迟到'},
+                'early': {class: 'bg-info', text: '早退'},
+                'absent': {class: 'bg-danger', text: '缺勤'}
+            };
+            const status = statusMap[data.status] || statusMap['normal'];
+            $('#todayStatus').removeClass('bg-secondary bg-success bg-warning bg-info bg-danger')
+                            .addClass(status.class).text(status.text);
+        } else {
+            $('#todayStatus').text('未打卡').removeClass('bg-success bg-warning bg-info bg-danger').addClass('bg-secondary');
+            $('#clockInBtn').prop('disabled', false);
+            $('#clockOutBtn').prop('disabled', true);
+        }
+    });
+}
+
+function clockIn() {
+    $.post('/attendance/api/clock-in', function(res) {
+        if (res.success) {
+            showToast('上班打卡成功！', 'success');
+            loadToday();
+            loadHistory();
+        } else {
+            showToast(res.message, 'danger');
+        }
+    });
+}
+
+function clockOut() {
+    $.post('/attendance/api/clock-out', function(res) {
+        if (res.success) {
+            showToast('下班打卡成功！', 'success');
+            loadToday();
+            loadHistory();
+        } else {
+            showToast(res.message, 'danger');
+        }
+    });
+}
+
+function loadHistory(pageNum = 1) {
+    page = pageNum;
+    $.get('/attendance/api/attendance/my', {
+        page: pageNum,
+        per_page: 10
+    }, function(res) {
+        if (res.success) {
+            renderHistory(res.data);
+        }
+    });
+}
+
+function loadMore() {
+    loadHistory(page + 1);
+}
+
+function renderHistory(records) {
+    const tbody = $('#attendanceTable');
+    if (page === 1) tbody.empty();
+
+    records.forEach(function(r) {
+        const statusClass = {
+            'normal': 'text-success',
+            'late': 'text-warning',
+            'early': 'text-info',
+            'absent': 'text-danger'
+        }[r.status] || '';
+
+        tbody.append(`
+            <tr>
+                <td>${r.attendance_date}</td>
+                <td>${r.clock_in ? r.clock_in.split(' ')[1].substring(0, 5) : '<span class="text-muted">--:--</span>'}</td>
+                <td>${r.clock_out ? r.clock_out.split(' ')[1].substring(0, 5) : '<span class="text-muted">--:--</span>'}</td>
+                <td class="${statusClass}"><strong>${r.status_display}</strong></td>
+            </tr>
+        `);
+    });
+}
+
+function showToast(msg, type) {
+    const toast = document.getElementById('appToast') || createToast();
+    const toastMsg = document.getElementById('toastMsg');
+    toast.className = 'toast align-items-center text-white border-0 bg-' + (type || 'success');
+    toastMsg.textContent = msg;
+    new bootstrap.Toast(toast, {delay: 3000}).show();
+}
+
+function createToast() {
+    const html = `<div class="toast align-items-center text-white border-0 bg-success position-fixed top-0 start-50 translate-middle-x mt-5" id="appToast" role="alert"><div class="d-flex"><div class="toast-body" id="toastMsg"></div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div></div>`;
+    $('body').append(html);
+    return document.getElementById('appToast');
+}
+</script>
+{% endblock %}

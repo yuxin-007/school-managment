@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="{{ page_lang }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>{% block title %}{{ t('学校管理系统') }}{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='style.css') }}" rel="stylesheet">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    {% block styles %}{% endblock %}
+    <style>
+    :root {
+        --nav-glass-bg: rgba(255, 255, 255, 0.85);
+        --nav-glass-border: rgba(255, 255, 255, 0.2);
+        --nav-height: 64px;
+        --transition-speed: 0.3s;
+    }
+    [data-bs-theme="dark"] {
+        --nav-glass-bg: rgba(33, 37, 41, 0.9);
+        --nav-glass-border: rgba(255, 255, 255, 0.1);
+    }
+    body {
+        padding-top: var(--nav-height);
+        transition: filter var(--transition-speed);
+    }
+    .main-navbar {
+        height: var(--nav-height);
+        background: var(--nav-glass-bg);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border-bottom: 1px solid var(--nav-glass-border);
+        box-shadow: 0 2px 20px rgba(0, 0, 0, 0.06);
+        transition: all var(--transition-speed);
+    }
+    .main-navbar .navbar-brand {
+        font-weight: 700;
+        font-size: 1.15rem;
+        color: var(--bs-primary);
+        letter-spacing: -0.5px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .main-navbar .navbar-brand i {
+        font-size: 1.3rem;
+        background: linear-gradient(135deg, var(--bs-primary), var(--system-accent, #764ba2));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+    .back-btn {
+        width: 38px;
+        height: 38px;
+        border-radius: 10px;
+        border: 1.5px solid var(--bs-border-color);
+        background: var(--bs-body-bg);
+        color: var(--bs-body-color);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s ease;
+        cursor: pointer;
+    }
+    .back-btn:hover {
+        border-color: var(--bs-primary);
+        color: var(--bs-primary);
+        background: var(--bs-primary-bg-subtle);
+        transform: translateX(-2px);
+    }
+    .nav-custom-link {
+        font-size: 0.88rem;
+        font-weight: 500;
+        padding: 6px 12px !important;
+        border-radius: 8px;
+        transition: all 0.2s ease;
+        color: var(--bs-secondary-color) !important;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .nav-custom-link:hover {
+        color: var(--bs-primary) !important;
+        background: var(--bs-primary-bg-subtle);
+    }
+    .nav-custom-link.active {
+        color: var(--bs-primary) !important;
+        background: var(--bs-primary-bg-subtle);
+    }
+    .nav-custom-link i {
+        font-size: 0.9rem;
+        opacity: 0.8;
+    }
+    .nav-dropdown-toggle {
+        position: relative;
+    }
+    .nav-dropdown-toggle::after {
+        display: none;
+    }
+    .nav-dropdown-menu {
+        border: 1px solid var(--bs-border-color);
+        border-radius: 12px;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+        padding: 8px;
+        min-width: 200px;
+        background: var(--bs-body-bg);
+    }
+    .nav-dropdown-menu .dropdown-item {
+        border-radius: 8px;
+        padding: 10px 14px;
+        font-size: 0.88rem;
+        transition: all 0.15s;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .nav-dropdown-menu .dropdown-item:hover {
+        background: var(--bs-primary-bg-subtle);
+        color: var(--bs-primary);
+    }
+    .nav-dropdown-menu .dropdown-item i {
+        width: 18px;
+        text-align: center;
+        opacity: 0.7;
+    }
+    .nav-dropdown-menu .dropdown-divider {
+        margin: 6px 0;
+        border-color: var(--bs-border-color);
+    }
+    .quick-actions {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 0 8px;
+    }
+    .quick-action-btn {
+        width: 38px;
+        height: 38px;
+        border-radius: 10px;
+        border: none;
+        background: transparent;
+        color: var(--bs-secondary-color);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s ease;
+        position: relative;
+        cursor: pointer;
+    }
+    .quick-action-btn:hover {
+        background: var(--bs-primary-bg-subtle);
+        color: var(--bs-primary);
+        transform: scale(1.05);
+    }
+    .quick-action-btn .badge-dot {
+        position: absolute;
+        top: 6px;
+        right: 6px;
+        width: 8px;
+        height: 8px;
+        background: #dc3545;
+        border-radius: 50%;
+        border: 2px solid var(--bs-body-bg);
+    }
+    .user-avatar-btn {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 12px;
+        border-radius: 10px;
+        border: 1.5px solid var(--bs-border-color);
+        background: var(--bs-body-bg);
+        transition: all 0.2s ease;
+        cursor: pointer;
+    }
+    .user-avatar-btn:hover {
+        border-color: var(--bs-primary);
+        background: var(--bs-primary-bg-subtle);
+    }
+    .user-avatar-btn .avatar {
+        width: 28px;
+        height: 28px;
+        border-radius: 8px;
+        background: linear-gradient(135deg, var(--bs-primary), var(--system-accent, #764ba2));
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    .user-avatar-btn .name {
+        font-size: 0.88rem;
+        font-weight: 500;
+        color: var(--bs-body-color);
+    }
+    .user-avatar-btn .role-badge {
+        font-size: 0.7rem;
+        padding: 2px 8px;
+        border-radius: 20px;
+        background: var(--bs-primary-bg-subtle);
+        color: var(--bs-primary);
+    }
+    .user-dropdown-menu {
+        border: 1px solid var(--bs-border-color);
+        border-radius: 12px;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+        padding: 8px;
+        min-width: 220px;
+        background: var(--bs-body-bg);
+    }
+    .user-dropdown-menu .dropdown-header {
+        padding: 12px 14px;
+        border-radius: 10px;
+        background: var(--bs-primary-bg-subtle);
+        margin-bottom: 6px;
+    }
+    .user-dropdown-menu .dropdown-header .user-name {
+        font-weight: 600;
+        font-size: 0.95rem;
+    }
+    .user-dropdown-menu .dropdown-header .user-role {
+        font-size: 0.8rem;
+        color: var(--bs-secondary-color);
+    }
+    .user-dropdown-menu .dropdown-item {
+        border-radius: 8px;
+        padding: 10px 14px;
+        font-size: 0.88rem;
+        transition: all 0.15s;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .user-dropdown-menu .dropdown-item:hover {
+        background: var(--bs-primary-bg-subtle);
+        color: var(--bs-primary);
+    }
+    .user-dropdown-menu .dropdown-item.text-danger:hover {
+        background: rgba(220, 53, 69, 0.1);
+        color: #dc3545;
+    }
+    .user-dropdown-menu .dropdown-item i {
+        width: 18px;
+        text-align: center;
+        opacity: 0.7;
+    }
+
+    /* 响应式优化 */
+    @media (max-width: 992px) {
+        .main-navbar {
+            padding: 0.5rem 0;
+        }
+        .navbar-collapse {
+            background: var(--bs-body-bg);
+            border-radius: 12px;
+            margin-top: 12px;
+            padding: 12px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+        }
+        .nav-custom-link {
+            padding: 10px 14px !important;
+        }
+        .quick-actions {
+            padding: 8px 0;
+            justify-content: flex-start;
+        }
+        .user-avatar-btn {
+            width: 100%;
+            justify-content: flex-start;
+        }
+    }
+    @media (max-width: 768px) {
+        :root {
+            --nav-height: 56px;
+        }
+        .main-navbar .navbar-brand span {
+            display: none;
+        }
+    }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg fixed-top main-navbar">
+        <div class="container">
+            <div class="d-flex align-items-center">
+                <button id="backButton" class="back-btn me-2">
+                    <i class="fas fa-arrow-left"></i>
+                </button>
+                <a class="navbar-brand" href="{{ url_for('main.index') }}">
+                    <i class="fas fa-graduation-cap"></i>
+                    <span>{{ t('学校管理系统') }}</span>
+                </a>
+            </div>
+            <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarContent">
+                <i class="fas fa-bars"></i>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarContent">
+                {% if current_user.is_authenticated %}
+                <div class="nav nav-links ms-auto me-2">
+                    <a class="nav-link nav-custom-link" href="{{ url_for('main.dashboard') }}">
+                        <i class="fas fa-th-large"></i>{{ t('控制台') }}
+                    </a>
+                    <a class="nav-link nav-custom-link" href="{{ url_for('announcement.index') }}">
+                        <i class="fas fa-bullhorn"></i>{{ t('公告') }}
+                    </a>
+                    {% if current_user.role in ['super_admin', 'college_admin'] %}
+                    <a class="nav-link nav-custom-link" href="{{ url_for('announcement.manage') }}">
+                        <i class="fas fa-edit"></i>{{ t('公告管理') }}
+                    </a>
+                    {% endif %}
+                    <a class="nav-link nav-custom-link" href="{{ url_for('leave.index') }}">
+                        <i class="fas fa-calendar-check"></i>{{ t('请假') }}
+                    </a>
+                    <a class="nav-link nav-custom-link" href="{{ url_for('course.schedule') }}">
+                        <i class="fas fa-calendar-alt"></i>{{ t('课表') }}
+                    </a>
+                    {% if current_user.role in ['super_admin', 'college_admin', 'staff'] %}
+                    <a class="nav-link nav-custom-link" href="{{ url_for('course.management') }}">
+                        <i class="fas fa-book-open"></i>{{ t('课程') }}
+                    </a>
+                    {% endif %}
+                    {% if current_user.role == 'student' %}
+                    <a class="nav-link nav-custom-link" href="{{ url_for('course.selection') }}">
+                        <i class="fas fa-tasks"></i>{{ t('选课') }}
+                    </a>
+                    {% endif %}
+
+                    {% if current_user.role in ['super_admin', 'college_admin'] %}
+                    <div class="nav-item dropdown">
+                        <a class="nav-link nav-custom-link nav-dropdown-toggle" href="#" data-bs-toggle="dropdown">
+                            <i class="fas fa-shield-alt"></i>{{ t('系统') }}<i class="fas fa-chevron-down ms-1" style="font-size: 0.65rem;"></i>
+                        </a>
+                        <ul class="dropdown-menu nav-dropdown-menu">
+                            <li><a class="dropdown-item" href="{{ url_for('organization.index') }}"><i class="fas fa-sitemap"></i>{{ t('组织架构') }}</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('user.statistics') }}"><i class="fas fa-chart-bar"></i>{{ t('用户统计') }}</a></li>
+                            {% if current_user.role == 'super_admin' %}
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ url_for('log.index') }}"><i class="fas fa-history"></i>{{ t('操作日志') }}</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('attendance.manage') }}"><i class="fas fa-clock"></i>{{ t('考勤管理') }}</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ url_for('main.settings') }}"><i class="fas fa-magic"></i>{{ t('系统外观') }}</a></li>
+                            {% endif %}
+                        </ul>
+                    </div>
+                    {% endif %}
+
+                    {% if current_user.role in ['super_admin', 'college_admin', 'staff'] %}
+                    <a class="nav-link nav-custom-link" href="{{ url_for('grade.entry') }}">
+                        <i class="fas fa-pencil-alt"></i>{{ t('成绩') }}
+                    </a>
+                    <a class="nav-link nav-custom-link" href="{{ url_for('attendance.index') }}">
+                        <i class="fas fa-user-check"></i>{{ t('考勤') }}
+                    </a>
+                    {% endif %}
+
+                    {% if current_user.role == 'student' %}
+                    <a class="nav-link nav-custom-link" href="{{ url_for('grade.index') }}">
+                        <i class="fas fa-graduation-cap"></i>{{ t('成绩') }}
+                    </a>
+                    {% endif %}
+                </div>
+
+                <div class="quick-actions">
+                    <a class="quick-action-btn" href="{{ url_for('notification.index') }}" title="{{ t('通知') }}">
+                        <i class="fas fa-bell"></i>
+                        <span id="unreadBadge" class="badge-dot" style="display: none;"></span>
+                    </a>
+                </div>
+
+                <div class="nav-item dropdown ms-1">
+                    <a class="user-avatar-btn dropdown-toggle" href="#" data-bs-toggle="dropdown">
+                        <div class="avatar">{{ current_user.real_name[:1] }}</div>
+                        <span class="name">{{ current_user.real_name }}</span>
+                        <span class="role-badge">{{ current_user.get_role_display() }}</span>
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-end user-dropdown-menu">
+                        <li class="dropdown-header">
+                            <div class="user-name">{{ current_user.real_name }}</div>
+                            <div class="user-role">{{ current_user.email or current_user.username }}</div>
+                        </li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="{{ url_for('main.settings') }}"><i class="fas fa-cog"></i>{{ t('个人设置') }}</a></li>
+                        <li><a class="dropdown-item text-danger" href="{{ url_for('auth.logout') }}"><i class="fas fa-power-off"></i>{{ t('退出登录') }}</a></li>
+                    </ul>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4 pt-2">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        {% block content %}{% endblock %}
+    </div>
+
+    <footer class="text-center mt-5">
+        <div class="container">
+            <p class="mb-0">&copy; {{ now().year }} {{ t('学校管理系统') }} — {{ '简洁高效的管理工具' if page_lang == 'zh-CN' else 'Simple and efficient management tool' }}</p>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // 翻译词典（客户端语言切换用）
+        window._i18n = {
+            'zh-CN': {
+                '学校管理系统': '学校管理系统', '控制台': '控制台', '公告': '公告',
+                '请假管理': '请假管理', '请假': '请假', '组织架构': '组织架构', '用户统计': '用户统计',
+                '系统管理': '系统管理', '系统': '系统', '公告管理': '公告管理', '操作日志': '操作日志',
+                '考勤管理': '考勤管理', '课程管理': '课程管理', '成绩录入': '成绩录入',
+                '课程选择': '课程选择', '我的成绩': '我的成绩', '课表查看': '课表查看', '课表': '课表',
+                '考勤打卡': '考勤打卡', '考勤': '考勤', '个人设置': '个人设置', '退出登录': '退出登录',
+                '通知': '通知', '个人资料': '个人资料', '账户': '账户',
+                '隐私与安全': '隐私与安全', '外观': '外观', '语言': '语言',
+                '关于': '关于', '修改密码': '修改密码', '当前密码': '当前密码',
+                '新密码': '新密码', '确认密码': '确认密码', '保存': '保存',
+                '取消': '取消', '提交': '提交', '搜索': '搜索',
+                '筛选': '筛选', '导出': '导出', '导入': '导入',
+                '新建': '新建', '编辑': '编辑', '删除': '删除',
+                '查看': '查看', '详情': '详情', '返回': '返回',
+                '首页': '首页', '上一页': '上一页', '下一页': '下一页',
+                '末页': '末页', '暂无数据': '暂无数据', '加载中': '加载中...',
+                '保存成功': '保存成功', '保存失败': '保存失败', '操作成功': '操作成功',
+                '操作失败': '操作失败', '确认删除': '确认删除',
+                '删除确认': '确定要删除吗？', '必填': '必填', '选填': '选填',
+                '请先登录': '请先登录', '简洁高效的管理工具': '简洁高效的管理工具',
+                '个人资料': '个人资料', '管理您的个人信息': '管理您的个人信息',
+                '修改密码': '修改密码', '更新您的账户密码': '更新您的账户密码',
+                '退出登录': '退出登录', '从所有设备注销当前账户': '从所有设备注销当前账户',
+                '退出登录': '退出登录', '退出登录': '退出登录',
+                '保护您的账户安全': '保护您的账户安全',
+                '自定义界面显示效果': '自定义界面显示效果',
+                '选择界面显示语言': '选择界面显示语言',
+                '系统信息': '系统信息', '系统外观': '系统外观',
+                '课程': '课程', '成绩': '成绩', '选课': '选课',
+            },
+            'en': {
+                '学校管理系统': 'School Management System', '控制台': 'Dashboard', '公告': 'Announcements',
+                '请假管理': 'Leave Management', '请假': 'Leave', '组织架构': 'Organization', '用户统计': 'User Statistics',
+                '系统管理': 'System Management', '系统': 'System', '公告管理': 'Announcement Mgmt', '操作日志': 'Operation Logs',
+                '考勤管理': 'Attendance Mgmt', '课程管理': 'Course Mgmt', '成绩录入': 'Grade Entry',
+                '课程选择': 'Course Selection', '我的成绩': 'My Grades', '课表查看': 'Schedule', '课表': 'Schedule',
+                '考勤打卡': 'Check In', '考勤': 'Attendance', '个人设置': 'Settings', '退出登录': 'Sign Out',
+                '通知': 'Notifications', '个人资料': 'Profile', '账户': 'Account',
+                '隐私与安全': 'Privacy & Security', '外观': 'Appearance', '语言': 'Language',
+                '关于': 'About', '修改密码': 'Change Password', '当前密码': 'Current Password',
+                '新密码': 'New Password', '确认密码': 'Confirm Password', '保存': 'Save',
+                '取消': 'Cancel', '提交': 'Submit', '搜索': 'Search',
+                '筛选': 'Filter', '导出': 'Export', '导入': 'Import',
+                '新建': 'Create', '编辑': 'Edit', '删除': 'Delete',
+                '查看': 'View', '详情': 'Details', '返回': 'Back',
+                '首页': 'First', '上一页': 'Prev', '下一页': 'Next',
+                '末页': 'Last', '暂无数据': 'No data', '加载中': 'Loading...',
+                '保存成功': 'Saved', '保存失败': 'Save failed', '操作成功': 'Done',
+                '操作失败': 'Failed', '确认删除': 'Confirm', '删除确认': 'Delete this item?',
+                '必填': 'Required', '选填': 'Optional',
+                '请先登录': 'Please login first', '简洁高效的管理工具': 'Simple and efficient management tool',
+                '个人资料': 'Profile', '管理您的个人信息': 'Manage your profile',
+                '修改密码': 'Change Password', '更新您的账户密码': 'Update your account password',
+                '退出登录': 'Sign Out', '从所有设备注销当前账户': 'Sign out from all devices',
+                '退出登录': 'Sign Out', '退出登录': 'Sign Out',
+                '保护您的账户安全': 'Protect your account security',
+                '自定义界面显示效果': 'Customize the interface appearance',
+                '选择界面显示语言': 'Choose display language',
+                '系统信息': 'System Information', '系统外观': 'System Appearance',
+                '课程': 'Course', '成绩': 'Grade', '选课': 'Select Course',
+            }
+        };
+
+        // 获取当前语言
+        window._currentLang = localStorage.getItem('i18n_lang') || '{{ page_lang }}';
+
+        // 翻译函数
+        function translatePage(lang) {
+            window._currentLang = lang;
+            localStorage.setItem('i18n_lang', lang);
+            document.documentElement.lang = lang;
+
+            const dict = window._i18n[lang] || {};
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (dict[key]) el.textContent = dict[key];
+            });
+            document.querySelectorAll('[data-i18n-title]').forEach(el => {
+                const key = el.getAttribute('data-i18n-title');
+                if (dict[key]) el.setAttribute('title', dict[key]);
+            });
+            document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+                const key = el.getAttribute('data-i18n-placeholder');
+                if (dict[key]) el.setAttribute('placeholder', dict[key]);
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            // 判断是否为控制台页面，控制台页面隐藏返回按钮
+            const isDashboard = window.location.pathname === '/' || window.location.pathname === '/dashboard';
+            const backBtn = document.getElementById('backButton');
+            if (backBtn) {
+                if (isDashboard) {
+                    backBtn.style.display = 'none';
+                } else {
+                    backBtn.style.display = 'flex';
+                    backBtn.addEventListener('click', function() {
+                        if (document.referrer && document.referrer !== window.location.href) {
+                            history.back();
+                        } else {
+                            window.location.href = "{{ url_for('main.dashboard') if current_user.is_authenticated else url_for('main.index') }}";
+                        }
+                    });
+                }
+            }
+            fetchUnreadCount();
+            initTheme();
+            translatePage(window._currentLang);
+        });
+        window.currentUserRole = {% if current_user.is_authenticated %}{{ current_user.role|tojson }}{% else %}null{% endif %};
+
+        function fetchUnreadCount() {
+            const badge = document.getElementById('unreadBadge');
+            if (!badge) return;
+            fetch('{{ url_for("notification.get_unread_count") }}')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success && data.data.unread > 0) {
+                        badge.style.display = 'block';
+                    } else {
+                        badge.style.display = 'none';
+                    }
+                })
+                .catch(() => {});
+        }
+
+        function initTheme() {
+            const savedTheme = localStorage.getItem('theme');
+            if (savedTheme) {
+                applyTheme(savedTheme);
+            } else {
+                fetch('/api/user/preferences')
+                    .then(r => r.json())
+                    .then(res => {
+                        if (res.success && res.data.theme) {
+                            applyTheme(res.data.theme);
+                        }
+                    })
+                    .catch(() => {});
+            }
+            // 应用系统外观设置
+            applySystemAppearance();
+        }
+
+        // 应用系统外观设置
+        function applySystemAppearance() {
+            // 优先使用 localStorage 缓存
+            let settings = localStorage.getItem('systemAppearance');
+            if (settings) {
+                try {
+                    settings = JSON.parse(settings);
+                    applyAppearanceSettings(settings);
+                } catch(e) {}
+            }
+            // 从服务器获取最新设置
+            fetch('/api/system/settings')
+                .then(r => r.json())
+                .then(res => {
+                    if (res.success) {
+                        const s = res.data;
+                        settings = {
+                            primary_color: s.primary_color,
+                            accent_color: s.accent_color,
+                            saturation: s.saturation,
+                            brightness: s.brightness,
+                            hue_shift: s.hue_shift,
+                            border_radius: s.border_radius,
+                            card_style: s.card_style,
+                            animation_enabled: s.animation_enabled
+                        };
+                        localStorage.setItem('systemAppearance', JSON.stringify(settings));
+                        applyAppearanceSettings(settings);
+                    }
+                })
+                .catch(() => {});
+        }
+
+        function applyAppearanceSettings(settings) {
+            const root = document.documentElement;
+            if (!settings) return;
+
+            // 应用主色调
+            if (settings.primary_color) {
+                root.style.setProperty('--system-primary', settings.primary_color);
+                root.style.setProperty('--bs-primary', settings.primary_color);
+                root.style.setProperty('--bs-link-color', settings.primary_color);
+            }
+            if (settings.accent_color) {
+                root.style.setProperty('--system-accent', settings.accent_color);
+            }
+
+            // 计算 RGB 值
+            if (settings.primary_color) {
+                const r = parseInt(settings.primary_color.slice(1, 3), 16);
+                const g = parseInt(settings.primary_color.slice(3, 5), 16);
+                const b = parseInt(settings.primary_color.slice(5, 7), 16);
+                root.style.setProperty('--bs-primary-rgb', `${r}, ${g}, ${b}`);
+            }
+
+            // 应用色调微调
+            if (settings.saturation || settings.brightness || settings.hue_shift) {
+                const sat = settings.saturation || 100;
+                const bri = settings.brightness || 100;
+                const hue = settings.hue_shift || 0;
+                document.body.style.filter = `saturate(${sat}%) brightness(${bri}%) hue-rotate(${hue}deg)`;
+            }
+
+            // 应用圆角
+            if (settings.border_radius) {
+                root.style.setProperty('--border-radius', settings.border_radius);
+            }
+
+            // 动画设置
+            if (settings.animation_enabled === false) {
+                document.body.style.setProperty('--transition-speed', '0ms');
+            }
+        }
+
+        function applyTheme(theme) {
+            const root = document.documentElement;
+            if (theme === 'auto') {
+                theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            }
+            if (theme === 'dark') {
+                root.setAttribute('data-bs-theme', 'dark');
+                document.body.classList.add('bg-dark', 'text-light');
+                document.body.classList.remove('bg-light', 'text-dark');
+            } else {
+                root.setAttribute('data-bs-theme', 'light');
+                document.body.classList.remove('bg-dark', 'text-light');
+                document.body.classList.add('bg-light', 'text-dark');
+            }
+            localStorage.setItem('theme', theme);
+        }
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

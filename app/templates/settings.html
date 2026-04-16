@@ -1,0 +1,1177 @@
+{% extends "base.html" %}
+
+{% block styles %}
+<style>
+.settings-container {
+    display: flex;
+    min-height: calc(100vh - 120px);
+    margin: -0.75rem -0.75rem 0 -0.75rem;
+}
+.settings-sidebar {
+    width: 260px;
+    flex-shrink: 0;
+    border-right: 1px solid var(--bs-border-color);
+    padding: 1.5rem 0;
+    overflow-y: auto;
+}
+.settings-main {
+    flex: 1;
+    padding: 2rem 2.5rem;
+    overflow-y: auto;
+}
+.settings-section {
+    display: none;
+}
+.settings-section.active {
+    display: block;
+}
+.settings-nav-item {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem 1.25rem;
+    color: var(--bs-body-color);
+    text-decoration: none;
+    border-left: 3px solid transparent;
+    transition: all 0.15s;
+    cursor: pointer;
+}
+.settings-nav-item:hover {
+    background-color: var(--bs-tertiary-bg);
+}
+.settings-nav-item.active {
+    background-color: var(--bs-primary-bg-subtle);
+    border-left-color: var(--bs-primary);
+    color: var(--bs-primary);
+    font-weight: 500;
+}
+.settings-nav-item i {
+    width: 24px;
+    margin-right: 12px;
+    font-size: 1.1rem;
+    text-align: center;
+}
+.settings-nav-item .nav-arrow {
+    margin-left: auto;
+    font-size: 0.75rem;
+    opacity: 0.5;
+}
+.settings-nav-item.active .nav-arrow {
+    opacity: 1;
+}
+
+.section-header {
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--bs-border-color);
+}
+.section-header h2 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+.section-header p {
+    color: var(--bs-secondary-color);
+    margin-bottom: 0;
+}
+
+.settings-card {
+    border: 1px solid var(--bs-border-color);
+    border-radius: 8px;
+    padding: 1.25rem;
+    margin-bottom: 1rem;
+    background: var(--bs-body-bg);
+}
+.settings-card:hover {
+    border-color: var(--bs-primary);
+}
+.settings-card-title {
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+    font-size: 0.95rem;
+}
+.settings-card-desc {
+    color: var(--bs-secondary-color);
+    font-size: 0.85rem;
+    margin-bottom: 0;
+}
+.settings-card-value {
+    font-size: 0.85rem;
+    color: var(--bs-secondary-color);
+    margin-top: 0.25rem;
+}
+.settings-card-action {
+    text-decoration: none;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+}
+
+.toggle-switch {
+    position: relative;
+    width: 44px;
+    height: 22px;
+    flex-shrink: 0;
+}
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-color: var(--bs-secondary-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: 22px;
+    transition: 0.2s;
+}
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 16px;
+    width: 16px;
+    left: 2px;
+    bottom: 2px;
+    background-color: white;
+    border-radius: 50%;
+    transition: 0.2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+.toggle-switch input:checked + .toggle-slider {
+    background-color: var(--bs-primary);
+    border-color: var(--bs-primary);
+}
+.toggle-switch input:checked + .toggle-slider:before {
+    transform: translateX(22px);
+}
+
+.theme-cards {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+.theme-card {
+    width: 120px;
+    cursor: pointer;
+    border: 2px solid var(--bs-border-color);
+    border-radius: 8px;
+    padding: 0.75rem;
+    text-align: center;
+    transition: all 0.15s;
+}
+.theme-card:hover {
+    border-color: var(--bs-primary);
+}
+.theme-card.selected {
+    border-color: var(--bs-primary);
+    background: var(--bs-primary-bg-subtle);
+}
+.theme-card-icon {
+    width: 100%;
+    height: 60px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 0.5rem;
+    font-size: 1.5rem;
+}
+.theme-card-light .theme-card-icon {
+    background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+    color: #495057;
+}
+.theme-card-dark .theme-card-icon {
+    background: linear-gradient(135deg, #2d2d2d, #1a1a1a);
+    color: #adb5bd;
+}
+.theme-card-auto .theme-card-icon {
+    background: linear-gradient(135deg, #f8f9fa 50%, #2d2d2d 50%);
+    color: #6c757d;
+}
+.theme-card-label {
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+.theme-card input {
+    display: none;
+}
+
+.lang-option {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--bs-border-color);
+    border-radius: 6px;
+    margin-bottom: 0.5rem;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.lang-option:hover {
+    border-color: var(--bs-primary);
+}
+.lang-option.selected {
+    border-color: var(--bs-primary);
+    background: var(--bs-primary-bg-subtle);
+}
+.lang-option input {
+    display: none;
+}
+.lang-flag {
+    font-size: 1.25rem;
+    margin-right: 0.75rem;
+}
+.lang-name {
+    font-weight: 500;
+    font-size: 0.9rem;
+}
+.lang-native {
+    font-size: 0.8rem;
+    color: var(--bs-secondary-color);
+}
+.lang-option .check-icon {
+    margin-left: auto;
+    color: var(--bs-primary);
+    display: none;
+}
+.lang-option.selected .check-icon {
+    display: block;
+}
+
+.login-info {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem;
+    background: var(--bs-tertiary-bg);
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+}
+.login-avatar {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: var(--bs-primary);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+.login-details h5 {
+    margin: 0 0 0.25rem;
+    font-weight: 600;
+}
+.login-details p {
+    margin: 0;
+    color: var(--bs-secondary-color);
+    font-size: 0.85rem;
+}
+
+/* 系统外观设置样式 */
+.appearance-preview {
+    background: #fff;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+.preview-navbar {
+    background: linear-gradient(135deg, var(--preview-primary, #667eea), var(--preview-accent, #764ba2));
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+.preview-brand {
+    width: 100px;
+    height: 20px;
+    background: rgba(255,255,255,0.9);
+    border-radius: 4px;
+}
+.preview-links {
+    display: flex;
+    gap: 12px;
+}
+.preview-link {
+    width: 50px;
+    height: 8px;
+    background: rgba(255,255,255,0.6);
+    border-radius: 4px;
+}
+.preview-content {
+    padding: 16px;
+    display: flex;
+    gap: 12px;
+}
+.preview-card {
+    flex: 1;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid #e9ecef;
+}
+.preview-card-header {
+    height: 40px;
+    background: var(--preview-primary, #667eea);
+}
+.preview-card-body {
+    padding: 12px;
+}
+.preview-line {
+    height: 10px;
+    background: #e9ecef;
+    border-radius: 4px;
+    margin-bottom: 8px;
+}
+.preview-line.short { width: 40%; }
+.preview-line.medium { width: 70%; }
+
+.preset-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.color-dot {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.system-preview-card {
+    border: 2px dashed var(--bs-primary);
+    background: var(--bs-primary-bg-subtle);
+}
+
+.form-range {
+    cursor: pointer;
+}
+
+.form-control-color {
+    width: 50px;
+    height: 38px;
+    padding: 4px;
+    cursor: pointer;
+}
+
+@media (max-width: 768px) {
+    .settings-container {
+        flex-direction: column;
+    }
+    .settings-sidebar {
+        width: 100%;
+        border-right: none;
+        border-bottom: 1px solid var(--bs-border-color);
+        padding: 0.5rem 0;
+    }
+    .settings-nav-item .nav-arrow {
+        display: none;
+    }
+    .settings-main {
+        padding: 1.5rem 1rem;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="settings-container">
+    <!-- 左侧边栏 -->
+    <div class="settings-sidebar">
+        <div class="px-3 mb-3">
+            <h5 class="mb-0 fw-semibold"><i class="fas fa-cog me-2"></i>{{ t('个人设置') }}</h5>
+        </div>
+
+        <div class="settings-nav-item active" data-section="profile">
+            <i class="fas fa-user-circle"></i>
+            <span data-i18n="个人资料">个人资料</span>
+            <i class="fas fa-chevron-right nav-arrow"></i>
+        </div>
+        <div class="settings-nav-item" data-section="account">
+            <i class="fas fa-id-card"></i>
+            <span data-i18n="账户">账户</span>
+            <i class="fas fa-chevron-right nav-arrow"></i>
+        </div>
+        <div class="settings-nav-item" data-section="privacy">
+            <i class="fas fa-shield-alt"></i>
+            <span data-i18n="隐私与安全">隐私与安全</span>
+            <i class="fas fa-chevron-right nav-arrow"></i>
+        </div>
+        <div class="settings-nav-item" data-section="appearance">
+            <i class="fas fa-palette"></i>
+            <span data-i18n="外观">外观</span>
+            <i class="fas fa-chevron-right nav-arrow"></i>
+        </div>
+        <div class="settings-nav-item" data-section="language">
+            <i class="fas fa-globe"></i>
+            <span data-i18n="语言">语言</span>
+            <i class="fas fa-chevron-right nav-arrow"></i>
+        </div>
+
+        <hr class="my-3">
+        <div class="settings-nav-item" data-section="about">
+            <i class="fas fa-info-circle"></i>
+            <span data-i18n="关于">关于</span>
+            <i class="fas fa-chevron-right nav-arrow"></i>
+        </div>
+
+        {% if current_user.role == 'super_admin' %}
+        <hr class="my-3">
+        <div class="px-3 mb-2">
+            <small class="text-muted fw-semibold text-uppercase"><i class="fas fa-crown me-1"></i>系统管理</small>
+        </div>
+        <div class="settings-nav-item" data-section="system-appearance">
+            <i class="fas fa-magic"></i>
+            <span>系统外观</span>
+            <i class="fas fa-chevron-right nav-arrow"></i>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- 右侧内容区 -->
+    <div class="settings-main">
+        <!-- Toast -->
+        <div class="position-fixed top-0 end-0 p-3" style="z-index:1100">
+            <div id="appToast" class="toast align-items-center text-white border-0" role="alert">
+                <div class="d-flex">
+                    <div class="toast-body" id="toastMsg"></div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 个人资料 -->
+        <div class="settings-section active" id="section-profile">
+            <div class="section-header">
+                <h2><i class="fas fa-user-circle me-2"></i><span data-i18n="个人资料">个人资料</span></h2>
+                <p data-i18n="管理您的个人信息">管理您的个人信息</p>
+            </div>
+            <div class="login-info">
+                <div class="login-avatar">{{ current_user.real_name[:1] }}</div>
+                <div class="login-details">
+                    <h5>{{ current_user.real_name }}</h5>
+                    <p>{{ current_user.get_role_display() }} · {{ current_user.username }}</p>
+                    <p class="mb-0">最后登录: {{ current_user.last_login.strftime('%Y-%m-%d %H:%M') if current_user.last_login else '首次登录' }}</p>
+                </div>
+            </div>
+            <form id="profileForm">
+                <div class="settings-card">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-medium">用户名</label>
+                            <input type="text" class="form-control" value="{{ current_user.username }}" readonly>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-medium">角色</label>
+                            <input type="text" class="form-control" value="{{ current_user.get_role_display() }}" readonly>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-medium" for="realName">真实姓名</label>
+                            <input type="text" class="form-control" id="realName" value="{{ current_user.real_name }}" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-medium">工号/学号</label>
+                            <input type="text" class="form-control" value="{{ current_user.employee_id or current_user.student_id or '未设置' }}" readonly>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-medium" for="email">邮箱</label>
+                            <input type="email" class="form-control" id="email" value="{{ current_user.email or '' }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-medium" for="phone">手机号</label>
+                            <input type="tel" class="form-control" id="phone" value="{{ current_user.phone or '' }}">
+                        </div>
+                    </div>
+                    <div class="mt-3 text-end">
+                        <button type="submit" class="btn btn-primary"><i class="fas fa-save me-1"></i>保存更改</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <!-- 账户 -->
+        <div class="settings-section" id="section-account">
+            <div class="section-header">
+                <h2><i class="fas fa-id-card me-2"></i><span data-i18n="账户">账户</span></h2>
+                <p data-i18n="管理您的登录账户">管理您的登录账户</p>
+            </div>
+            <div class="login-info">
+                <div class="login-avatar">{{ current_user.real_name[:1] }}</div>
+                <div class="login-details">
+                    <h5>{{ current_user.username }}</h5>
+                    <p>{{ current_user.email or '未设置邮箱' }} · {{ current_user.get_role_display() }}</p>
+                </div>
+            </div>
+            <div class="settings-card" onclick="showSection('privacy')">
+                <div class="settings-card-action">
+                    <div>
+                        <div class="settings-card-title"><i class="fas fa-key me-2 text-warning"></i>修改密码</div>
+                        <div class="settings-card-desc">更新您的账户密码</div>
+                    </div>
+                    <i class="fas fa-chevron-right text-muted"></i>
+                </div>
+            </div>
+            <div class="settings-card">
+                <div class="settings-card-title mb-2"><i class="fas fa-sign-out-alt me-2 text-danger"></i>退出登录</div>
+                <p class="settings-card-desc mb-3">从所有设备注销当前账户</p>
+                <a href="{{ url_for('auth.logout') }}" class="btn btn-outline-danger" onclick="return confirm('确定要退出登录吗？')">
+                    <i class="fas fa-power-off me-1"></i>退出登录
+                </a>
+            </div>
+        </div>
+
+        <!-- 隐私与安全 -->
+        <div class="settings-section" id="section-privacy">
+            <div class="section-header">
+                <h2><i class="fas fa-shield-alt me-2"></i><span data-i18n="隐私与安全">隐私与安全</span></h2>
+                <p data-i18n="保护您的账户安全">保护您的账户安全</p>
+            </div>
+            <form id="passwordForm">
+                <div class="settings-card">
+                    <div class="settings-card-title mb-3"><i class="fas fa-key me-2 text-warning"></i>修改密码</div>
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label small fw-medium" for="currentPassword">当前密码</label>
+                            <input type="password" class="form-control" id="currentPassword" required placeholder="请输入当前密码">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-medium" for="newPassword">新密码</label>
+                            <input type="password" class="form-control" id="newPassword" required placeholder="至少6位">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-medium" for="confirmPassword">确认新密码</label>
+                            <input type="password" class="form-control" id="confirmPassword" required placeholder="再次输入新密码">
+                        </div>
+                    </div>
+                    <div class="mt-3 d-flex justify-content-between align-items-center">
+                        <small class="text-muted">密码至少包含6个字符</small>
+                        <button type="submit" class="btn btn-warning"><i class="fas fa-key me-1"></i>更新密码</button>
+                    </div>
+                </div>
+            </form>
+            <div class="settings-card">
+                <div class="settings-card-title mb-2"><i class="fas fa-history me-2 text-info"></i>登录历史</div>
+                <div class="settings-card-value">
+                    {% if current_user.last_login %}
+                    上次登录: {{ current_user.last_login.strftime('%Y-%m-%d %H:%M:%S') }}
+                    {% else %}
+                    当前为首次登录
+                    {% endif %}
+                </div>
+                <div class="settings-card-value mt-1">账户创建时间: {{ current_user.created_at.strftime('%Y-%m-%d %H:%M') if current_user.created_at else '未知' }}</div>
+            </div>
+        </div>
+
+        <!-- 外观 -->
+        <div class="settings-section" id="section-appearance">
+            <div class="section-header">
+                <h2><i class="fas fa-palette me-2"></i><span data-i18n="外观">外观</span></h2>
+                <p data-i18n="自定义界面显示效果">自定义界面显示效果</p>
+            </div>
+            <div class="settings-card">
+                <div class="settings-card-title mb-3"><i class="fas fa-adjust me-2"></i>主题</div>
+                <div class="theme-cards">
+                    <label class="theme-card theme-card-light" data-theme="light">
+                        <input type="radio" name="theme" value="light">
+                        <div class="theme-card-icon"><i class="fas fa-sun"></i></div>
+                        <div class="theme-card-label">浅色</div>
+                    </label>
+                    <label class="theme-card theme-card-dark" data-theme="dark">
+                        <input type="radio" name="theme" value="dark">
+                        <div class="theme-card-icon"><i class="fas fa-moon"></i></div>
+                        <div class="theme-card-label">深色</div>
+                    </label>
+                    <label class="theme-card theme-card-auto" data-theme="auto">
+                        <input type="radio" name="theme" value="auto">
+                        <div class="theme-card-icon"><i class="fas fa-desktop"></i></div>
+                        <div class="theme-card-label">跟随系统</div>
+                    </label>
+                </div>
+                <div class="mt-3 text-end">
+                    <button type="button" class="btn btn-primary" onclick="saveAppearance()"><i class="fas fa-save me-1"></i>应用主题</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 语言 -->
+        <div class="settings-section" id="section-language">
+            <div class="section-header">
+                <h2><i class="fas fa-globe me-2"></i><span data-i18n="语言">语言</span></h2>
+                <p data-i18n="选择界面显示语言">选择界面显示语言</p>
+            </div>
+            <div class="settings-card">
+                <div class="settings-card-title mb-3"><i class="fas fa-language me-2"></i>界面语言</div>
+                <label class="lang-option" data-lang="zh-CN">
+                    <input type="radio" name="language" value="zh-CN">
+                    <span class="lang-flag">🇨🇳</span>
+                    <div>
+                        <div class="lang-name">简体中文</div>
+                        <div class="lang-native">Chinese (Simplified)</div>
+                    </div>
+                    <i class="fas fa-check check-icon"></i>
+                </label>
+                <label class="lang-option" data-lang="en">
+                    <input type="radio" name="language" value="en">
+                    <span class="lang-flag">🇺🇸</span>
+                    <div>
+                        <div class="lang-name">English</div>
+                        <div class="lang-native">英语</div>
+                    </div>
+                    <i class="fas fa-check check-icon"></i>
+                </label>
+                <div class="mt-3 text-end">
+                    <button type="button" class="btn btn-primary" onclick="saveLanguage()"><i class="fas fa-save me-1"></i>保存语言</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 关于 -->
+        <div class="settings-section" id="section-about">
+            <div class="section-header">
+                <h2><i class="fas fa-info-circle me-2"></i><span data-i18n="关于">关于</span></h2>
+                <p data-i18n="系统信息">系统信息</p>
+            </div>
+            <div class="settings-card">
+                <div class="settings-card-title mb-2"><i class="fas fa-school me-2 text-primary"></i>学校管理系统</div>
+                <div class="settings-card-value">版本 1.0.0</div>
+                <div class="settings-card-value">基于 Flask + Bootstrap 5 构建</div>
+                <hr>
+                <div class="settings-card-value">© {{ now().year }} 学校管理系统开发团队</div>
+            </div>
+        </div>
+
+        {% if current_user.role == 'super_admin' %}
+        <!-- 系统外观（仅超级管理员可见）-->
+        <div class="settings-section" id="section-system-appearance">
+            <div class="section-header">
+                <h2><i class="fas fa-magic me-2"></i>系统外观定制</h2>
+                <p class="text-muted">为系统设置统一的界面风格，此设置对所有用户生效</p>
+            </div>
+
+            <!-- 实时预览 -->
+            <div class="settings-card system-preview-card mb-4">
+                <div class="settings-card-title mb-3"><i class="fas fa-eye me-2"></i>实时预览</div>
+                <div id="appearancePreview" class="appearance-preview">
+                    <div class="preview-navbar">
+                        <div class="preview-brand"></div>
+                        <div class="preview-links"></div>
+                    </div>
+                    <div class="preview-content">
+                        <div class="preview-card">
+                            <div class="preview-card-header"></div>
+                            <div class="preview-card-body">
+                                <div class="preview-line short"></div>
+                                <div class="preview-line"></div>
+                                <div class="preview-line medium"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 背景设置 -->
+            <div class="settings-card">
+                <div class="settings-card-title mb-3"><i class="fas fa-image me-2"></i>背景设置</div>
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label small fw-medium">背景类型</label>
+                        <select class="form-select" id="backgroundType">
+                            <option value="solid">纯色背景</option>
+                            <option value="gradient">渐变背景</option>
+                            <option value="image">图片背景</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4" id="solidColorWrapper">
+                        <label class="form-label small fw-medium">背景颜色</label>
+                        <div class="d-flex align-items-center gap-2">
+                            <input type="color" class="form-control form-control-color" id="backgroundColor" value="#f0f2f5">
+                            <span class="small text-muted" id="bgColorValue">#f0f2f5</span>
+                        </div>
+                    </div>
+                    <div class="col-md-4" id="gradientStartWrapper" style="display:none;">
+                        <label class="form-label small fw-medium">渐变起始色</label>
+                        <div class="d-flex align-items-center gap-2">
+                            <input type="color" class="form-control form-control-color" id="gradientStart" value="#667eea">
+                            <span class="small text-muted" id="gradientStartValue">#667eea</span>
+                        </div>
+                    </div>
+                    <div class="col-md-4" id="gradientEndWrapper" style="display:none;">
+                        <label class="form-label small fw-medium">渐变结束色</label>
+                        <div class="d-flex align-items-center gap-2">
+                            <input type="color" class="form-control form-control-color" id="gradientEnd" value="#764ba2">
+                            <span class="small text-muted" id="gradientEndValue">#764ba2</span>
+                        </div>
+                    </div>
+                    <div class="col-12" id="imageWrapper" style="display:none;">
+                        <label class="form-label small fw-medium">背景图片URL</label>
+                        <input type="url" class="form-control" id="backgroundImage" placeholder="https://example.com/bg.jpg">
+                        <div class="form-text">建议使用 https 图片链接，支持 .jpg/.png/.webp 格式</div>
+                    </div>
+                    <div class="col-md-6" id="imageOpacityWrapper" style="display:none;">
+                        <label class="form-label small fw-medium">图片透明度</label>
+                        <input type="range" class="form-range" id="imageOpacity" min="0" max="1" step="0.1" value="0.3">
+                        <span class="small text-muted" id="opacityValue">30%</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 主题色调 -->
+            <div class="settings-card">
+                <div class="settings-card-title mb-3"><i class="fas fa-palette me-2"></i>主题色调</div>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label small fw-medium">主色调</label>
+                        <div class="d-flex align-items-center gap-2">
+                            <input type="color" class="form-control form-control-color" id="primaryColor" value="#667eea">
+                            <span class="small text-muted" id="primaryColorValue">#667eea</span>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-medium">强调色</label>
+                        <div class="d-flex align-items-center gap-2">
+                            <input type="color" class="form-control form-control-color" id="accentColor" value="#764ba2">
+                            <span class="small text-muted" id="accentColorValue">#764ba2</span>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label small fw-medium">预设主题</label>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <button type="button" class="btn btn-sm btn-outline-primary preset-btn" data-primary="#667eea" data-accent="#764ba2">
+                                <span class="color-dot" style="background:#667eea"></span>优雅紫
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-primary preset-btn" data-primary="#2196F3" data-accent="#1976D2">
+                                <span class="color-dot" style="background:#2196F3"></span>科技蓝
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-primary preset-btn" data-primary="#4CAF50" data-accent="#388E3C">
+                                <span class="color-dot" style="background:#4CAF50"></span>清新绿
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-primary preset-btn" data-primary="#FF9800" data-accent="#F57C00">
+                                <span class="color-dot" style="background:#FF9800"></span>活力橙
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-primary preset-btn" data-primary="#E91E63" data-accent="#C2185B">
+                                <span class="color-dot" style="background:#E91E63"></span>时尚粉
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-primary preset-btn" data-primary="#607D8B" data-accent="#455A64">
+                                <span class="color-dot" style="background:#607D8B"></span>商务灰
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 色调调整 -->
+            <div class="settings-card">
+                <div class="settings-card-title mb-3"><i class="fas fa-sliders-h me-2"></i>色调微调</div>
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label small fw-medium">饱和度 <span id="satVal">100%</span></label>
+                        <input type="range" class="form-range" id="saturation" min="0" max="200" value="100">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small fw-medium">亮度 <span id="briVal">100%</span></label>
+                        <input type="range" class="form-range" id="brightness" min="50" max="150" value="100">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small fw-medium">色相偏移 <span id="hueVal">0°</span></label>
+                        <input type="range" class="form-range" id="hueShift" min="-180" max="180" value="0">
+                    </div>
+                </div>
+            </div>
+
+            <!-- 其他设置 -->
+            <div class="settings-card">
+                <div class="settings-card-title mb-3"><i class="fas fa-cog me-2"></i>其他设置</div>
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label small fw-medium">圆角风格</label>
+                        <select class="form-select" id="borderRadius">
+                            <option value="0px">直角</option>
+                            <option value="4px">微圆角</option>
+                            <option value="8px" selected>中等圆角</option>
+                            <option value="16px">大圆角</option>
+                            <option value="9999px">胶囊形</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small fw-medium">卡片样式</label>
+                        <select class="form-select" id="cardStyle">
+                            <option value="rounded">圆角卡片</option>
+                            <option value="sharp">方正卡片</option>
+                            <option value="circle">圆形元素</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4 d-flex align-items-end">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="animationEnabled" checked>
+                            <label class="form-check-label" for="animationEnabled">启用过渡动画</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 保存按钮 -->
+            <div class="d-flex justify-content-between align-items-center mt-4">
+                <button type="button" class="btn btn-outline-secondary" onclick="resetSystemAppearance()">
+                    <i class="fas fa-undo me-1"></i>恢复默认
+                </button>
+                <button type="button" class="btn btn-primary" onclick="saveSystemAppearance()">
+                    <i class="fas fa-save me-1"></i>保存系统外观
+                </button>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+function showToast(msg, type) {
+    const toast = document.getElementById('appToast');
+    const toastMsg = document.getElementById('toastMsg');
+    toast.className = 'toast align-items-center text-white border-0 bg-' + (type || 'success');
+    toastMsg.textContent = msg;
+    new bootstrap.Toast(toast, {delay: 3000}).show();
+}
+
+function showSection(name) {
+    document.querySelectorAll('.settings-section').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.settings-nav-item').forEach(n => n.classList.remove('active'));
+    document.getElementById('section-' + name).classList.add('active');
+    document.querySelector('[data-section="' + name + '"]').classList.add('active');
+    window.scrollTo({top: 0, behavior: 'smooth'});
+}
+
+$(function() {
+    $('.settings-nav-item').on('click', function() {
+        const section = $(this).data('section');
+        showSection(section);
+    });
+
+    $('#profileForm').submit(function(e) { e.preventDefault(); updateProfile(); });
+    $('#passwordForm').submit(function(e) { e.preventDefault(); changePassword(); });
+
+    loadPreferences();
+});
+
+function updateProfile() {
+    let data = {
+        real_name: $('#realName').val(),
+        email: $('#email').val(),
+        phone: $('#phone').val()
+    };
+    $.ajax({
+        url: '/api/user/profile', method: 'PUT', contentType: 'application/json', data: JSON.stringify(data),
+        success: res => {
+            showToast(res.success ? '个人信息已保存' : '错误: ' + res.message, res.success ? 'success' : 'danger');
+            if (res.success) setTimeout(() => location.reload(), 1500);
+        },
+        error: () => showToast('请求失败', 'danger')
+    });
+}
+
+function changePassword() {
+    let data = {
+        current_password: $('#currentPassword').val(),
+        new_password: $('#newPassword').val(),
+        confirm_password: $('#confirmPassword').val()
+    };
+    $.ajax({
+        url: '/api/user/change_password', method: 'POST', contentType: 'application/json', data: JSON.stringify(data),
+        success: res => {
+            if (res.success) {
+                showToast('密码已更新', 'success');
+                $('#passwordForm')[0].reset();
+            } else {
+                showToast('错误: ' + res.message, 'danger');
+            }
+        },
+        error: () => showToast('请求失败', 'danger')
+    });
+}
+
+function loadPreferences() {
+    fetch('/api/user/preferences')
+        .then(r => r.json())
+        .then(res => {
+            if (res.success) {
+                const theme = res.data.theme || 'light';
+                const lang = res.data.language || 'zh-CN';
+                // 主题
+                $(`input[name="theme"][value="${theme}"]`).prop('checked', true);
+                $(`.theme-card[data-theme="${theme}"]`).addClass('selected');
+                // 语言
+                $(`input[name="language"][value="${lang}"]`).prop('checked', true);
+                $(`.lang-option[data-lang="${lang}"]`).addClass('selected');
+            }
+        });
+}
+
+$('.theme-card').on('click', function() {
+    $('.theme-card').removeClass('selected');
+    $(this).addClass('selected');
+    $(this).find('input').prop('checked', true);
+});
+
+$('.lang-option').on('click', function() {
+    $('.lang-option').removeClass('selected');
+    $(this).addClass('selected');
+    $(this).find('input').prop('checked', true);
+});
+
+function saveAppearance() {
+    const theme = $('input[name="theme"]:checked').val() || 'light';
+    $.ajax({
+        url: '/api/user/preferences', method: 'PUT',
+        contentType: 'application/json', data: JSON.stringify({ theme: theme }),
+        success: res => {
+            showToast('主题已保存', 'success');
+            applyTheme(theme);
+        },
+        error: () => showToast('保存失败', 'danger')
+    });
+}
+
+function saveLanguage() {
+    const language = $('input[name="language"]:checked').val() || 'zh-CN';
+    const dict = window._i18n[language] || {};
+    const savedMsg = dict['保存成功'] || '保存成功';
+    $.ajax({
+        url: '/api/user/preferences', method: 'PUT',
+        contentType: 'application/json', data: JSON.stringify({ language: language }),
+        success: res => {
+            showToast(res.success ? savedMsg : (dict['保存失败'] || '保存失败'), 'success');
+            if (res.success) {
+                translatePage(language);
+                // 刷新页面以确保所有内容正确翻译
+                setTimeout(() => location.reload(), 1000);
+            }
+        },
+        error: () => showToast(dict['保存失败'] || '保存失败', 'danger')
+    });
+}
+
+function applyTheme(theme) {
+    const root = document.documentElement;
+    if (theme === 'auto') {
+        theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+    if (theme === 'dark') {
+        root.setAttribute('data-bs-theme', 'dark');
+        document.body.classList.add('bg-dark', 'text-light');
+        document.body.classList.remove('bg-light', 'text-dark');
+    } else {
+        root.setAttribute('data-bs-theme', 'light');
+        document.body.classList.remove('bg-dark', 'text-light');
+        document.body.classList.add('bg-light', 'text-dark');
+    }
+    localStorage.setItem('theme', theme);
+}
+
+// 系统外观设置功能
+function loadSystemAppearance() {
+    fetch('/api/system/settings')
+        .then(r => r.json())
+        .then(res => {
+            if (res.success) {
+                const s = res.data;
+                // 背景设置
+                $('#backgroundType').val(s.background_type || 'solid');
+                $('#backgroundColor').val(s.background_color || '#f0f2f5');
+                $('#bgColorValue').text(s.background_color || '#f0f2f5');
+                $('#gradientStart').val(s.background_gradient_start || '#667eea');
+                $('#gradientStartValue').text(s.background_gradient_start || '#667eea');
+                $('#gradientEnd').val(s.background_gradient_end || '#764ba2');
+                $('#gradientEndValue').text(s.background_gradient_end || '#764ba2');
+                $('#backgroundImage').val(s.background_image || '');
+                $('#imageOpacity').val(s.background_image_opacity || 0.3);
+                $('#opacityValue').text(Math.round((s.background_image_opacity || 0.3) * 100) + '%');
+                // 色调
+                $('#primaryColor').val(s.primary_color || '#667eea');
+                $('#primaryColorValue').text(s.primary_color || '#667eea');
+                $('#accentColor').val(s.accent_color || '#764ba2');
+                $('#accentColorValue').text(s.accent_color || '#764ba2');
+                // 微调
+                $('#saturation').val(s.saturation || 100);
+                $('#satVal').text((s.saturation || 100) + '%');
+                $('#brightness').val(s.brightness || 100);
+                $('#briVal').text((s.brightness || 100) + '%');
+                $('#hueShift').val(s.hue_shift || 0);
+                $('#hueVal').text((s.hue_shift || 0) + '°');
+                // 其他
+                $('#borderRadius').val(s.border_radius || '8px');
+                $('#cardStyle').val(s.card_style || 'rounded');
+                $('#animationEnabled').prop('checked', s.animation_enabled !== false);
+
+                toggleBackgroundFields(s.background_type || 'solid');
+                updatePreview();
+            }
+        });
+}
+
+function toggleBackgroundFields(type) {
+    $('#solidColorWrapper').toggle(type === 'solid');
+    $('#gradientStartWrapper').toggle(type === 'gradient' || type === 'image');
+    $('#gradientEndWrapper').toggle(type === 'gradient');
+    $('#imageWrapper').toggle(type === 'image');
+    $('#imageOpacityWrapper').toggle(type === 'image');
+}
+
+function updatePreview() {
+    const primary = $('#primaryColor').val();
+    const accent = $('#accentColor').val();
+    document.documentElement.style.setProperty('--preview-primary', primary);
+    document.documentElement.style.setProperty('--preview-accent', accent);
+}
+
+function saveSystemAppearance() {
+    const data = {
+        background_type: $('#backgroundType').val(),
+        background_color: $('#backgroundColor').val(),
+        background_gradient_start: $('#gradientStart').val(),
+        background_gradient_end: $('#gradientEnd').val(),
+        background_image: $('#backgroundImage').val(),
+        background_image_opacity: parseFloat($('#imageOpacity').val()),
+        primary_color: $('#primaryColor').val(),
+        accent_color: $('#accentColor').val(),
+        saturation: parseInt($('#saturation').val()),
+        brightness: parseInt($('#brightness').val()),
+        hue_shift: parseInt($('#hueShift').val()),
+        border_radius: $('#borderRadius').val(),
+        card_style: $('#cardStyle').val(),
+        animation_enabled: $('#animationEnabled').is(':checked')
+    };
+
+    $.ajax({
+        url: '/api/system/settings',
+        method: 'PUT',
+        contentType: 'application/json',
+        data: JSON.stringify(data),
+        success: res => {
+            showToast(res.success ? '系统外观设置已保存' : '保存失败: ' + res.message, res.success ? 'success' : 'danger');
+            if (res.success) {
+                // 应用到当前页面
+                applySystemAppearance(data);
+            }
+        },
+        error: () => showToast('请求失败', 'danger')
+    });
+}
+
+function applySystemAppearance(settings) {
+    const root = document.documentElement;
+
+    // 应用主色调 CSS 变量
+    root.style.setProperty('--system-primary', settings.primary_color);
+    root.style.setProperty('--system-accent', settings.accent_color);
+
+    // 应用到 Bootstrap CSS 变量
+    root.style.setProperty('--bs-primary', settings.primary_color);
+    root.style.setProperty('--bs-primary-rgb', hexToRgb(settings.primary_color));
+    root.style.setProperty('--bs-link-color', settings.primary_color);
+
+    // 应用色调微调
+    if (settings.saturation !== 100 || settings.brightness !== 100 || settings.hue_shift !== 0) {
+        const filter = `saturate(${settings.saturation}%) brightness(${settings.brightness}%) hue-rotate(${settings.hue_shift}deg)`;
+        root.style.setProperty('--color-filter', filter);
+    }
+
+    // 保存到 localStorage 供前端使用
+    localStorage.setItem('systemAppearance', JSON.stringify(settings));
+}
+
+function hexToRgb(hex) {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `${r}, ${g}, ${b}`;
+}
+
+function resetSystemAppearance() {
+    if (!confirm('确定要恢复系统外观为默认设置吗？')) return;
+
+    const defaults = {
+        background_type: 'solid',
+        background_color: '#f0f2f5',
+        background_gradient_start: '#667eea',
+        background_gradient_end: '#764ba2',
+        background_image: '',
+        background_image_opacity: 0.3,
+        primary_color: '#667eea',
+        accent_color: '#764ba2',
+        saturation: 100,
+        brightness: 100,
+        hue_shift: 0,
+        border_radius: '8px',
+        card_style: 'rounded',
+        animation_enabled: true
+    };
+
+    $.ajax({
+        url: '/api/system/settings',
+        method: 'PUT',
+        contentType: 'application/json',
+        data: JSON.stringify(defaults),
+        success: res => {
+            showToast('已恢复默认设置', 'success');
+            loadSystemAppearance();
+            localStorage.removeItem('systemAppearance');
+            location.reload();
+        }
+    });
+}
+
+// 预设主题点击
+$(document).on('click', '.preset-btn', function() {
+    const primary = $(this).data('primary');
+    const accent = $(this).data('accent');
+    $('#primaryColor').val(primary).trigger('change');
+    $('#primaryColorValue').text(primary);
+    $('#accentColor').val(accent).trigger('change');
+    $('#accentColorValue').text(accent);
+    updatePreview();
+});
+
+// 输入变化时更新预览
+$(document).on('input', '#backgroundType', function() {
+    toggleBackgroundFields($(this).val());
+});
+
+$(document).on('input', '#backgroundColor', function() {
+    $('#bgColorValue').text($(this).val());
+});
+$(document).on('input', '#gradientStart', function() {
+    $('#gradientStartValue').text($(this).val());
+});
+$(document).on('input', '#gradientEnd', function() {
+    $('#gradientEndValue').text($(this).val());
+});
+$(document).on('input', '#primaryColor', function() {
+    $('#primaryColorValue').text($(this).val());
+    updatePreview();
+});
+$(document).on('input', '#accentColor', function() {
+    $('#accentColorValue').text($(this).val());
+    updatePreview();
+});
+$(document).on('input', '#imageOpacity', function() {
+    $('#opacityValue').text(Math.round($(this).val() * 100) + '%');
+});
+$(document).on('input', '#saturation', function() {
+    $('#satVal').text($(this).val() + '%');
+});
+$(document).on('input', '#brightness', function() {
+    $('#briVal').text($(this).val() + '%');
+});
+$(document).on('input', '#hueShift', function() {
+    $('#hueVal').text($(this).val() + '°');
+});
+
+// 页面加载时检查是否为系统管理员，如果是则加载系统外观设置
+$(document).ready(function() {
+    {% if current_user.role == 'super_admin' %}
+    loadSystemAppearance();
+    {% endif %}
+});
+</script>
+{% endblock %}

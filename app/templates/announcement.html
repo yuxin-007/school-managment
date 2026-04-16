@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+
+{% block title %}公告 - 学校管理系统{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2 class="mb-4"><i class="fas fa-bullhorn me-2"></i>系统公告</h2>
+
+        <!-- 公告筛选 -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <select class="form-select" id="categoryFilter">
+                            <option value="">全部类型</option>
+                            <option value="general">普通</option>
+                            <option value="system">系统通知</option>
+                            <option value="course">课程通知</option>
+                            <option value="leave">请假通知</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 公告列表 -->
+        <div id="announcementList" class="row"></div>
+
+        <!-- 分页 -->
+        <nav>
+            <ul class="pagination justify-content-center" id="pagination"></ul>
+        </nav>
+    </div>
+</div>
+
+<!-- 公告详情 Modal -->
+<div class="modal fade" id="detailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="detailTitle"></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <span class="badge bg-info me-2" id="detailCategory"></span>
+                    <span class="badge bg-warning me-2" id="detailPriority"></span>
+                    <small class="text-muted" id="detailMeta"></small>
+                </div>
+                <div class="border-top pt-3" id="detailContent"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentPage = 1;
+
+$(function() {
+    loadAnnouncements();
+
+    $('#categoryFilter').change(function() {
+        currentPage = 1;
+        loadAnnouncements();
+    });
+});
+
+function loadAnnouncements(page = 1) {
+    const category = $('#categoryFilter').val();
+    $.get('/announcement/api/announcements', {
+        page: page,
+        per_page: 10,
+        category: category
+    }, function(res) {
+        if (res.success) {
+            renderAnnouncements(res.data);
+            renderPagination(res.pagination);
+        }
+    });
+}
+
+function renderAnnouncements(announcements) {
+    const container = $('#announcementList');
+    container.empty();
+
+    if (announcements.length === 0) {
+        container.html('<div class="col-12 text-center text-muted py-5"><i class="fas fa-bullhorn fa-3x mb-3"></i><p>暂无公告</p></div>');
+        return;
+    }
+
+    announcements.forEach(function(ann) {
+        const priorityClass = {
+            'normal': 'bg-secondary',
+            'important': 'bg-warning',
+            'urgent': 'bg-danger'
+        }[ann.priority] || 'bg-secondary';
+
+        const pinned = ann.is_pinned ? '<span class="badge bg-primary me-2">置顶</span>' : '';
+
+        container.append(`
+            <div class="col-12 mb-3">
+                <div class="card ${ann.is_pinned ? 'border-primary' : ''}">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                ${pinned}
+                                <span class="badge ${priorityClass} me-2">${ann.priority_display}</span>
+                                <span class="badge bg-info">${ann.category_display}</span>
+                            </div>
+                            <small class="text-muted">${ann.created_at}</small>
+                        </div>
+                        <h5 class="card-title mt-2 cursor-pointer text-primary" onclick="showDetail(${ann.id})">${escHtml(ann.title)}</h5>
+                        <p class="card-text text-muted">${escHtml(ann.content.substring(0, 200))}${ann.content.length > 200 ? '...' : ''}</p>
+                        <small class="text-muted">
+                            <i class="fas fa-user me-1"></i>${escHtml(ann.author_name)}
+                            <i class="fas fa-eye ms-3 me-1"></i>${ann.view_count}次浏览
+                        </small>
+                    </div>
+                </div>
+            </div>
+        `);
+    });
+}
+
+function showDetail(id) {
+    $.get('/announcement/api/announcements/' + id, function(res) {
+        if (res.success) {
+            const ann = res.data;
+            $('#detailTitle').text(ann.title);
+            $('#detailCategory').text(ann.category_display);
+            $('#detailPriority').text(ann.priority_display);
+            $('#detailMeta').text(`${ann.author_name} 发布于 ${ann.created_at}`);
+            $('#detailContent').html(ann.content.replace(/\n/g, '<br>'));
+            new bootstrap.Modal($('#detailModal')).show();
+        }
+    });
+}
+
+function renderPagination(pagination) {
+    const ul = $('#pagination');
+    ul.empty();
+
+    if (pagination.pages <= 1) return;
+
+    ul.append(`<li class="page-item ${pagination.has_prev ? '' : 'disabled'}"><a class="page-link" href="#" onclick="loadAnnouncements(${pagination.page - 1})">上一页</a></li>`);
+
+    for (let i = 1; i <= pagination.pages; i++) {
+        if (i === 1 || i === pagination.pages || (i >= pagination.page - 2 && i <= pagination.page + 2)) {
+            ul.append(`<li class="page-item ${i === pagination.page ? 'active' : ''}"><a class="page-link" href="#" onclick="loadAnnouncements(${i})">${i}</a></li>`);
+        } else if (i === pagination.page - 3 || i === pagination.page + 3) {
+            ul.append('<li class="page-item disabled"><span class="page-link">...</span></li>');
+        }
+    }
+
+    ul.append(`<li class="page-item ${pagination.has_next ? '' : 'disabled'}"><a class="page-link" href="#" onclick="loadAnnouncements(${pagination.page + 1})">下一页</a></li>`);
+}
+
+function escHtml(str) {
+    if (!str) return '';
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+</script>
+{% endblock %}

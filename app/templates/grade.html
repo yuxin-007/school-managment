@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block title %}我的成绩 - 学校管理系统{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2 class="mb-4"><i class="fas fa-graduation-cap me-2"></i>我的成绩</h2>
+
+        <!-- 成绩列表 -->
+        <div class="card">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>课程名称</th>
+                                <th>课程代码</th>
+                                <th>学分</th>
+                                <th>成绩</th>
+                                <th>等级</th>
+                                <th>类型</th>
+                                <th>发布时间</th>
+                            </tr>
+                        </thead>
+                        <tbody id="gradeTable"></tbody>
+                    </table>
+                </div>
+                <nav>
+                    <ul class="pagination justify-content-center" id="pagination"></ul>
+                </nav>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentPage = 1;
+
+$(function() {
+    loadGrades();
+});
+
+function loadGrades(page = 1) {
+    currentPage = page;
+    $.get('/grade/api/grades/my', {page: page, per_page: 20}, function(res) {
+        if (res.success) {
+            renderGrades(res.data);
+            renderPagination(res.pagination);
+        } else {
+            $('#gradeTable').html(`<tr><td colspan="7" class="text-center text-muted py-4">${res.message || '暂无成绩数据'}</td></tr>`);
+        }
+    });
+}
+
+function renderGrades(grades) {
+    const tbody = $('#gradeTable');
+    tbody.empty();
+
+    if (grades.length === 0) {
+        tbody.html('<tr><td colspan="7" class="text-center text-muted py-4"><i class="fas fa-graduation-cap fa-3x mb-3 d-block"></i>暂无成绩</td></tr>');
+        return;
+    }
+
+    grades.forEach(function(g) {
+        const scoreClass = getScoreClass(g.score);
+        const letterClass = getLetterClass(g.score_letter);
+
+        tbody.append(`
+            <tr>
+                <td><strong>${escHtml(g.course_name)}</strong></td>
+                <td><code>${escHtml(g.course_code)}</code></td>
+                <td>${g.course ? g.course.credit : '-'}</td>
+                <td><span class="badge ${scoreClass} fs-6">${g.score !== null ? g.score : 'N/A'}</span></td>
+                <td><span class="badge ${letterClass} fs-6">${g.score_letter}</span></td>
+                <td>${g.grade_type === 'mid-term' ? '期中' : (g.grade_type === 'final' ? '期末' : '补考')}</td>
+                <td>${g.published_at || '-'}</td>
+            </tr>
+        `);
+    });
+}
+
+function getScoreClass(score) {
+    if (score === null) return 'bg-secondary';
+    if (score >= 90) return 'bg-success';
+    if (score >= 80) return 'bg-primary';
+    if (score >= 70) return 'bg-info';
+    if (score >= 60) return 'bg-warning text-dark';
+    return 'bg-danger';
+}
+
+function getLetterClass(letter) {
+    const map = {'A': 'bg-success', 'B': 'bg-primary', 'C': 'bg-info', 'D': 'bg-warning text-dark', 'F': 'bg-danger'};
+    return map[letter] || 'bg-secondary';
+}
+
+function renderPagination(pagination) {
+    const ul = $('#pagination');
+    ul.empty();
+    if (pagination.pages <= 1) return;
+    ul.append(`<li class="page-item ${pagination.has_prev ? '' : 'disabled'}"><a class="page-link" href="#" onclick="loadGrades(${pagination.page - 1})">上一页</a></li>`);
+    for (let i = 1; i <= pagination.pages; i++) {
+        if (i === 1 || i === pagination.pages || (i >= pagination.page - 2 && i <= pagination.page + 2)) {
+            ul.append(`<li class="page-item ${i === pagination.page ? 'active' : ''}"><a class="page-link" href="#" onclick="loadGrades(${i})">${i}</a></li>`);
+        }
+    }
+    ul.append(`<li class="page-item ${pagination.has_next ? '' : 'disabled'}"><a class="page-link" href="#" onclick="loadGrades(${pagination.page + 1})">下一页</a></li>`);
+}
+
+function escHtml(str) {
+    if (!str) return '';
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+</script>
+{% endblock %}

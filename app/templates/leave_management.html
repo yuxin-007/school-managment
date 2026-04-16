@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-calendar-alt me-2"></i>请假管理</h2>
+    <div><button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createLeaveModal"><i class="fas fa-plus me-1"></i>新建申请</button><button class="btn btn-outline-secondary" id="refreshLeavesBtn"><i class="fas fa-sync-alt me-1"></i>刷新</button></div>
+</div>
+<div class="row mb-4">
+    <div class="col-xl-3 col-md-6 mb-3"><div class="card bg-primary text-white"><div class="card-body"><div><h4 id="totalApplications">0</h4><p>总申请数</p></div></div></div></div>
+    <div class="col-xl-3 col-md-6 mb-3"><div class="card bg-warning text-white"><div class="card-body"><div><h4 id="pendingApplications">0</h4><p>待审批</p></div></div></div></div>
+    <div class="col-xl-3 col-md-6 mb-3"><div class="card bg-success text-white"><div class="card-body"><div><h4 id="approvedApplications">0</h4><p>已批准</p></div></div></div></div>
+    <div class="col-xl-3 col-md-6 mb-3"><div class="card bg-danger text-white"><div class="card-body"><div><h4 id="rejectedApplications">0</h4><p>已拒绝</p></div></div></div></div>
+</div>
+<ul class="nav nav-tabs mb-4">
+    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#my-leaves"><i class="fas fa-list me-1"></i>我的申请</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#pending-approval"><i class="fas fa-tasks me-1"></i>待我审批 <span id="pendingBadge" class="badge bg-warning ms-1">0</span></button></li>
+</ul>
+<div class="tab-content">
+    <div class="tab-pane fade show active" id="my-leaves"><div class="card"><div class="card-header"><h5 class="card-title mb-0"><i class="fas fa-list me-2"></i>我的请假申请</h5></div><div class="card-body"><div class="table-responsive"><table class="table table-striped"><thead><tr><th>申请时间</th><th>请假类型</th><th>开始日期</th><th>结束日期</th><th>总天数</th><th>状态</th><th>当前审批人</th><th>操作</th></tr></thead><tbody id="myLeavesTableBody"></tbody></table></div></div></div></div>
+    <div class="tab-pane fade" id="pending-approval"><div class="card"><div class="card-header"><h5 class="card-title mb-0"><i class="fas fa-tasks me-2"></i>待我审批的申请</h5></div><div class="card-body"><div class="table-responsive"><table class="table table-striped"><thead><tr><th>申请人</th><th>请假类型</th><th>开始日期</th><th>结束日期</th><th>总天数</th><th>申请时间</th><th>操作</th></tr></thead><tbody id="pendingApprovalTableBody"></tbody></table></div></div></div></div>
+</div>
+
+<!-- 新建申请模态框 -->
+<div class="modal fade" id="createLeaveModal"><div class="modal-dialog modal-lg"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">新建请假申请</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <form id="createLeaveForm"><div class="modal-body">
+        <div class="row"><div class="col-md-6"><div class="mb-3"><label>请假类型 *</label><select class="form-control" id="leaveType" required><option value="">请选择</option></select></div></div><div class="col-md-6"><div class="mb-3"><label>审批人</label><input type="text" class="form-control" id="approverInfo" readonly></div></div></div>
+        <div class="row"><div class="col-md-6"><div class="mb-3"><label>开始日期 *</label><input type="date" class="form-control" id="startDate" required></div></div><div class="col-md-6"><div class="mb-3"><label>结束日期 *</label><input type="date" class="form-control" id="endDate" required></div></div></div>
+        <div class="mb-3"><label>总天数</label><input type="text" class="form-control" id="totalDays" readonly></div>
+        <div class="mb-3"><label>请假事由 *</label><textarea class="form-control" id="reason" rows="3" required></textarea></div>
+        <div class="row"><div class="col-md-6"><div class="mb-3"><label>紧急联系人</label><input type="text" class="form-control" id="emergencyContact"></div></div><div class="col-md-6"><div class="mb-3"><label>紧急联系电话</label><input type="tel" class="form-control" id="emergencyPhone"></div></div></div>
+    </div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button><button type="submit" class="btn btn-primary">提交申请</button></div></form>
+</div></div></div>
+
+<!-- 详情模态框 -->
+<div class="modal fade" id="viewLeaveModal"><div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">请假申请详情</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body" id="leaveDetailsContent"></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button></div></div></div></div>
+
+<!-- 审批模态框 -->
+<div class="modal fade" id="approveLeaveModal"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">审批请假申请</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><form id="approveLeaveForm"><input type="hidden" id="approveApplicationId"><div class="modal-body"><div class="mb-3"><label>审批意见</label><textarea class="form-control" id="approvalComments" rows="3"></textarea></div></div><div class="modal-footer"><button type="button" class="btn btn-danger" id="rejectBtn">拒绝</button><button type="submit" class="btn btn-success">批准</button></div></form></div></div></div>
+
+<script>
+let currentApplicationId = null;
+$(function() { loadLeaveTypes(); loadApproverInfo(); loadMyLeaves(); loadPendingLeaves(); $('#refreshLeavesBtn').click(() => { loadMyLeaves(); loadPendingLeaves(); }); $('#startDate, #endDate').change(calculateDays); $('#createLeaveForm').submit(function(e) { e.preventDefault(); createLeave(); }); $('#approveLeaveForm').submit(function(e) { e.preventDefault(); approveLeave(); }); $('#rejectBtn').click(() => rejectLeave()); });
+function loadLeaveTypes() { $.get('/leave/api/types', res => { if(res.success) res.data.forEach(t => $('#leaveType').append(`<option value="${t.value}">${t.label}</option>`)); }); }
+function loadApproverInfo() { $('#approverInfo').val('系统自动分配'); }
+function calculateDays() { let start = $('#startDate').val(), end = $('#endDate').val(); if(start && end) { let days = (new Date(end) - new Date(start)) / (1000*3600*24) + 1; $('#totalDays').val(days + ' 天'); } }
+function loadMyLeaves() { $.get('/leave/api/applications', res => { if(res.success) displayMyLeaves(res.data); }); }
+function displayMyLeaves(apps) { let tbody = $('#myLeavesTableBody'); tbody.empty(); if(apps.length === 0) { $('#noMyLeavesMessage').removeClass('d-none'); $('.table-responsive').hide(); return; } $('#noMyLeavesMessage').addClass('d-none'); $('.table-responsive').show(); apps.forEach(a => { let statusBadge = a.status === 'pending' ? 'bg-warning' : (a.status === 'approved' ? 'bg-success' : 'bg-danger'); tbody.append(`<tr><td>${a.created_at}</td><td>${a.leave_type_display}</td><td>${a.start_date}</td><td>${a.end_date}</td><td>${a.total_days}天</span></td><td><span class="badge ${statusBadge}">${a.status_display}</span></td><td>${a.current_approver_name||'-'}</td><td><button class="btn btn-sm btn-outline-primary view-leave" data-id="${a.id}"><i class="fas fa-eye"></i></button> ${a.status==='pending' ? `<button class="btn btn-sm btn-outline-danger cancel-leave" data-id="${a.id}"><i class="fas fa-times"></i></button>` : ''}</td></tr>`); }); $('.view-leave').click(function() { viewLeave($(this).data('id')); }); $('.cancel-leave').click(function() { if(confirm('取消申请？')) cancelLeave($(this).data('id')); }); updateStats(apps); }
+function updateStats(apps) { $('#totalApplications').text(apps.length); $('#pendingApplications').text(apps.filter(a=>a.status==='pending').length); $('#approvedApplications').text(apps.filter(a=>a.status==='approved').length); $('#rejectedApplications').text(apps.filter(a=>a.status==='rejected').length); }
+function loadPendingLeaves() { $.get('/leave/api/applications/pending', res => { if(res.success) displayPending(res.data); }); }
+function displayPending(apps) { let tbody = $('#pendingApprovalTableBody'); tbody.empty(); if(apps.length === 0) { $('#noPendingApprovalMessage').removeClass('d-none'); $('.table-responsive').hide(); $('#pendingBadge').text(0); return; } $('#noPendingApprovalMessage').addClass('d-none'); $('.table-responsive').show(); $('#pendingBadge').text(apps.length); apps.forEach(a => { tbody.append(`<tr><td>${a.staff_name}</td><td>${a.leave_type_display}</td><td>${a.start_date}</td><td>${a.end_date}</td><td>${a.total_days}天</span></td><td>${a.created_at}</td><td><button class="btn btn-sm btn-outline-primary view-pending" data-id="${a.id}"><i class="fas fa-eye"></i></button> <button class="btn btn-sm btn-outline-success approve-pending" data-id="${a.id}"><i class="fas fa-check"></i></button></td></tr>`); }); $('.view-pending').click(function() { viewLeave($(this).data('id')); }); $('.approve-pending').click(function() { openApproveModal($(this).data('id')); }); }
+function createLeave() { let data = { leave_type: $('#leaveType').val(), start_date: $('#startDate').val(), end_date: $('#endDate').val(), reason: $('#reason').val(), emergency_contact: $('#emergencyContact').val(), emergency_phone: $('#emergencyPhone').val() }; $.ajax({ url: '/leave/api/applications', method: 'POST', contentType: 'application/json', data: JSON.stringify(data), success: res => { if(res.success) { $('#createLeaveModal').modal('hide'); loadMyLeaves(); loadPendingLeaves(); alert(res.message); } else alert('错误: '+res.message); } }); }
+function viewLeave(id) { $.get(`/leave/api/applications/${id}`, res => { if(res.success) { let a = res.data; let flows = ''; if(a.approval_flows) flows = `<h6>审批流程</h6><table class="table table-sm"><thead><tr><th>步骤</th><th>审批人</th><th>状态</th><th>意见</th><th>时间</th></tr></thead><tbody>${a.approval_flows.map(f=>`<tr><td>${f.approval_step}</td><td>${f.approver_name}</td><td>${f.status_display}</td><td>${f.comments||'-'}</td><td>${f.updated_at||f.created_at}</td></tr>`).join('')}</tbody></table>`; $('#leaveDetailsContent').html(`<div class="row"><div class="col-md-6"><p><strong>申请人:</strong> ${a.staff_name}</p><p><strong>请假类型:</strong> ${a.leave_type_display}</p><p><strong>日期:</strong> ${a.start_date} ~ ${a.end_date}</p><p><strong>总天数:</strong> ${a.total_days}天</p></div><div class="col-md-6"><p><strong>状态:</strong> ${a.status_display}</p><p><strong>当前审批人:</strong> ${a.current_approver_name||'-'}</p><p><strong>申请时间:</strong> ${a.created_at}</p></div></div><div class="mt-3"><strong>请假事由:</strong><div class="border p-2 bg-light">${a.reason}</div></div>${flows}`); $('#viewLeaveModal').modal('show'); } }); }
+function openApproveModal(id) { currentApplicationId = id; $('#approveApplicationId').val(id); $('#approvalComments').val(''); $('#approveLeaveModal').modal('show'); }
+function approveLeave() { let comments = $('#approvalComments').val(); $.ajax({ url: `/leave/api/applications/${currentApplicationId}/approve`, method: 'POST', contentType: 'application/json', data: JSON.stringify({comments}), success: res => { if(res.success) { $('#approveLeaveModal').modal('hide'); loadMyLeaves(); loadPendingLeaves(); alert(res.message); } else alert('错误: '+res.message); } }); }
+function rejectLeave() { let comments = $('#approvalComments').val(); $.ajax({ url: `/leave/api/applications/${currentApplicationId}/reject`, method: 'POST', contentType: 'application/json', data: JSON.stringify({comments}), success: res => { if(res.success) { $('#approveLeaveModal').modal('hide'); loadMyLeaves(); loadPendingLeaves(); alert(res.message); } else alert('错误: '+res.message); } }); }
+function cancelLeave(id) { $.post(`/leave/api/applications/${id}/cancel`, {}, res => { if(res.success) { loadMyLeaves(); loadPendingLeaves(); alert(res.message); } else alert('错误: '+res.message); }); }
+</script>
+{% endblock %}

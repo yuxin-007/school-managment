@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+
+{% block title %}操作日志 - 学校管理系统{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2 class="mb-4"><i class="fas fa-history me-2"></i>操作日志</h2>
+
+        <!-- 筛选 -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-2">
+                        <select class="form-select" id="actionFilter">
+                            <option value="">全部操作</option>
+                            <option value="login">登录</option>
+                            <option value="create_user">创建用户</option>
+                            <option value="update_user">更新用户</option>
+                            <option value="delete_user">删除用户</option>
+                            <option value="create_course">创建课程</option>
+                            <option value="update_course">更新课程</option>
+                            <option value="select_course">选课</option>
+                            <option value="drop_course">退选</option>
+                            <option value="create_leave">提交请假</option>
+                            <option value="approve_leave">审批请假</option>
+                            <option value="reject_leave">拒绝请假</option>
+                            <option value="create_org">创建组织</option>
+                            <option value="update_org">更新组织</option>
+                            <option value="create_announcement">发布公告</option>
+                            <option value="update_announcement">更新公告</option>
+                            <option value="delete_announcement">删除公告</option>
+                            <option value="grade_entry">录入成绩</option>
+                            <option value="grade_update">更新成绩</option>
+                            <option value="attendance_clock_in">上班打卡</option>
+                            <option value="attendance_clock_out">下班打卡</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <input type="text" class="form-control" id="keyword" placeholder="搜索关键词">
+                    </div>
+                    <div class="col-md-2">
+                        <input type="date" class="form-control" id="startDate">
+                    </div>
+                    <div class="col-md-2">
+                        <input type="date" class="form-control" id="endDate">
+                    </div>
+                    <div class="col-md-2">
+                        <button class="btn btn-primary w-100" onclick="loadLogs(1)"><i class="fas fa-search me-1"></i>查询</button>
+                    </div>
+                    <div class="col-md-2">
+                        <button class="btn btn-outline-secondary w-100" onclick="clearFilters()">重置</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 日志列表 -->
+        <div class="card">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>时间</th>
+                                <th>用户</th>
+                                <th>操作</th>
+                                <th>目标</th>
+                                <th>详情</th>
+                                <th>IP地址</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logsTable"></tbody>
+                    </table>
+                </div>
+                <nav>
+                    <ul class="pagination justify-content-center" id="pagination"></ul>
+                </nav>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentPage = 1;
+
+$(function() {
+    loadLogs();
+});
+
+function loadLogs(page = 1) {
+    currentPage = page;
+    $.get('/log/api/logs', {
+        page: page,
+        per_page: 50,
+        action: $('#actionFilter').val(),
+        keyword: $('#keyword').val(),
+        start_date: $('#startDate').val(),
+        end_date: $('#endDate').val()
+    }, function(res) {
+        if (res.success) {
+            renderLogs(res.data);
+            renderPagination(res.pagination);
+        }
+    });
+}
+
+function renderLogs(logs) {
+    const tbody = $('#logsTable');
+    tbody.empty();
+
+    if (logs.length === 0) {
+        tbody.html('<tr><td colspan="6" class="text-center text-muted py-4"><i class="fas fa-history fa-3x mb-3 d-block"></i>暂无日志</td></tr>');
+        return;
+    }
+
+    const actionColor = {
+        'login': 'text-primary', 'logout': 'text-secondary',
+        'create_user': 'text-success', 'update_user': 'text-info', 'delete_user': 'text-danger',
+        'create_course': 'text-success', 'update_course': 'text-info', 'delete_course': 'text-danger',
+        'select_course': 'text-success', 'drop_course': 'text-warning',
+        'create_leave': 'text-success', 'approve_leave': 'text-success', 'reject_leave': 'text-danger', 'cancel_leave': 'text-warning',
+        'create_org': 'text-success', 'update_org': 'text-info', 'delete_org': 'text-danger',
+        'create_announcement': 'text-success', 'update_announcement': 'text-info', 'delete_announcement': 'text-danger',
+        'grade_entry': 'text-success', 'grade_update': 'text-info',
+        'attendance_clock_in': 'text-success', 'attendance_clock_out': 'text-info'
+    };
+
+    logs.forEach(function(log) {
+        const color = actionColor[log.action] || 'text-dark';
+        const target = log.target_name ? `<strong>${escHtml(log.target_name)}</strong>` : '-';
+
+        tbody.append(`
+            <tr>
+                <td><small>${log.created_at}</small></td>
+                <td><strong>${escHtml(log.user_name)}</strong></td>
+                <td><span class="${color}"><i class="fas fa-circle me-1" style="font-size:0.5rem"></i>${log.action_display}</span></td>
+                <td>${target}</td>
+                <td><small class="text-muted">${escHtml(log.detail || '-')}</small></td>
+                <td><code>${log.ip_address || '-'}</code></td>
+            </tr>
+        `);
+    });
+}
+
+function clearFilters() {
+    $('#actionFilter').val('');
+    $('#keyword').val('');
+    $('#startDate').val('');
+    $('#endDate').val('');
+    loadLogs(1);
+}
+
+function renderPagination(pagination) {
+    const ul = $('#pagination');
+    ul.empty();
+    if (pagination.pages <= 1) return;
+    ul.append(`<li class="page-item ${pagination.has_prev ? '' : 'disabled'}"><a class="page-link" href="#" onclick="loadLogs(${pagination.page - 1})">上一页</a></li>`);
+    for (let i = 1; i <= pagination.pages; i++) {
+        if (i === 1 || i === pagination.pages || (i >= pagination.page - 2 && i <= pagination.page + 2)) {
+            ul.append(`<li class="page-item ${i === pagination.page ? 'active' : ''}"><a class="page-link" href="#" onclick="loadLogs(${i})">${i}</a></li>`);
+        }
+    }
+    ul.append(`<li class="page-item ${pagination.has_next ? '' : 'disabled'}"><a class="page-link" href="#" onclick="loadLogs(${pagination.page + 1})">下一页</a></li>`);
+}
+
+function escHtml(str) {
+    if (!str) return '';
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+</script>
+{% endblock %}
