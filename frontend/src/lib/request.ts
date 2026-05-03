@@ -1,4 +1,4 @@
-import axios from 'axios'
+import axios, { AxiosHeaders } from 'axios'
 import { message } from 'antd'
 import { useAuthStore } from '@/store/authStore'
 
@@ -13,8 +13,33 @@ const request = axios.create({
   withCredentials: true,
 })
 
+let csrfToken: string | null = null
+
+const mutatingMethods = new Set(['post', 'put', 'patch', 'delete'])
+
+const getCsrfToken = async () => {
+  if (csrfToken) {
+    return csrfToken
+  }
+
+  const response = await axios.get('/api/csrf-token', { withCredentials: true })
+  csrfToken = response.data?.data?.csrf_token || null
+  return csrfToken
+}
+
 request.interceptors.request.use(
-  (config) => config,
+  async (config) => {
+    const method = (config.method || 'get').toLowerCase()
+    if (mutatingMethods.has(method)) {
+      const token = await getCsrfToken()
+      if (token) {
+        const headers = AxiosHeaders.from(config.headers)
+        headers.set('X-CSRFToken', token)
+        config.headers = headers
+      }
+    }
+    return config
+  },
   (error) => Promise.reject(error),
 )
 
@@ -30,6 +55,9 @@ request.interceptors.response.use(
     return response
   },
   (error) => {
+    if (error.response?.status === 400 && String(error.response?.data?.message || '').includes('CSRF')) {
+      csrfToken = null
+    }
     if (error.response?.status === 401) {
       useAuthStore.getState().logout()
       if (window.location.pathname !== '/login') {

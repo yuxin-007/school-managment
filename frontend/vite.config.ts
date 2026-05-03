@@ -55,6 +55,11 @@ export default defineConfig({
             return 'antd-icons'
           }
 
+          const antdComponent = id.match(/node_modules[\\/]antd[\\/]es[\\/]([^\\/]+)/)
+          if (antdComponent?.[1]) {
+            return `antd-${antdComponent[1]}`
+          }
+
           if (id.includes('antd') || id.includes('@ant-design') || id.includes('rc-')) {
             return 'antd-core'
           }
@@ -87,47 +92,43 @@ export default defineConfig({
         target: 'http://127.0.0.1:5000',
         changeOrigin: true,
       },
-      '/user': {
+      '/user/api': {
         target: 'http://127.0.0.1:5000',
         changeOrigin: true,
       },
-      '/organization': {
+      '/organization/api': {
         target: 'http://127.0.0.1:5000',
         changeOrigin: true,
       },
-      '/leave': {
+      '/leave/api': {
         target: 'http://127.0.0.1:5000',
         changeOrigin: true,
       },
-      '/course': {
+      '/course/api': {
         target: 'http://127.0.0.1:5000',
         changeOrigin: true,
       },
-      '/grade': {
+      '/assignment/api': {
         target: 'http://127.0.0.1:5000',
         changeOrigin: true,
       },
-      '/attendance': {
+      '/grade/api': {
         target: 'http://127.0.0.1:5000',
         changeOrigin: true,
       },
-      '/announcement': {
+      '/attendance/api': {
         target: 'http://127.0.0.1:5000',
         changeOrigin: true,
       },
-      '/notification': {
+      '/announcement/api': {
         target: 'http://127.0.0.1:5000',
         changeOrigin: true,
       },
-      '/log': {
+      '/notification/api': {
         target: 'http://127.0.0.1:5000',
         changeOrigin: true,
       },
-      '/dashboard': {
-        target: 'http://127.0.0.1:5000',
-        changeOrigin: true,
-      },
-      '/login': {
+      '/log/api': {
         target: 'http://127.0.0.1:5000',
         changeOrigin: true,
       },

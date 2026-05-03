@@ -48,7 +48,7 @@ export function getOrganizationVisual(
   }
 }
 
-export function flattenOrganizationTree(nodes: Array<{ children?: any[] }>): any[] {
+export function flattenOrganizationTree<T extends { children?: T[] }>(nodes: T[]): T[] {
   return nodes.flatMap((node) => [node, ...flattenOrganizationTree(node.children ?? [])])
 }
 

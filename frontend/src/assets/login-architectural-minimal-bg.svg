@@ -1,0 +1,114 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2560 1440" role="img" aria-label="Minimal campus architecture background">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#e8f3f2"/>
+      <stop offset="0.42" stop-color="#fbfcfd"/>
+      <stop offset="1" stop-color="#f6faf9"/>
+    </linearGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7fb6b2" stop-opacity="0.88"/>
+      <stop offset="0.5" stop-color="#c5dddd" stop-opacity="0.42"/>
+      <stop offset="1" stop-color="#f7fbfb" stop-opacity="0.72"/>
+    </linearGradient>
+    <linearGradient id="glassDeep" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#5f9f9c" stop-opacity="0.48"/>
+      <stop offset="1" stop-color="#e9f4f2" stop-opacity="0.18"/>
+    </linearGradient>
+    <linearGradient id="plaza" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.96"/>
+      <stop offset="1" stop-color="#eef3f2" stop-opacity="0.92"/>
+    </linearGradient>
+    <linearGradient id="tealPanel" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#b8dcda" stop-opacity="0.2"/>
+      <stop offset="1" stop-color="#7bbebb" stop-opacity="0.34"/>
+    </linearGradient>
+    <radialGradient id="mist" cx="57%" cy="42%" r="50%">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.98"/>
+      <stop offset="0.58" stop-color="#ffffff" stop-opacity="0.86"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="softBlur" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="18"/>
+    </filter>
+    <pattern id="floorGrid" width="168" height="168" patternUnits="userSpaceOnUse">
+      <path d="M 168 0 L 0 168" fill="none" stroke="#d8dfdf" stroke-width="1" stroke-opacity="0.46"/>
+      <path d="M 0 168 H 168" fill="none" stroke="#d8dfdf" stroke-width="1" stroke-opacity="0.3"/>
+    </pattern>
+    <pattern id="hatch" width="14" height="14" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <path d="M 0 0 V 14" stroke="#b8c8c8" stroke-width="1" stroke-opacity="0.24"/>
+    </pattern>
+  </defs>
+
+  <rect width="2560" height="1440" fill="url(#sky)"/>
+  <rect width="2560" height="1440" fill="url(#mist)"/>
+
+  <g opacity="0.96">
+    <path d="M0 0 H1088 L646 318 L0 416 Z" fill="url(#glass)" opacity="0.68"/>
+    <path d="M0 0 H512 V780 H0 Z" fill="url(#glassDeep)" opacity="0.72"/>
+    <path d="M512 0 H840 V920 H512 Z" fill="#eef7f6" opacity="0.62"/>
+    <path d="M0 416 L646 318 L840 492 L0 618 Z" fill="#ffffff" opacity="0.64"/>
+    <path d="M0 618 H690 L840 690 V828 H0 Z" fill="#dceceb" opacity="0.34"/>
+  </g>
+
+  <g opacity="0.46">
+    <path d="M0 0 V880" stroke="#ffffff" stroke-width="2"/>
+    <path d="M152 0 V760" stroke="#ffffff" stroke-width="2"/>
+    <path d="M284 0 V724" stroke="#ffffff" stroke-width="2"/>
+    <path d="M382 0 V696" stroke="#ffffff" stroke-width="2"/>
+    <path d="M512 0 V866" stroke="#ffffff" stroke-width="2"/>
+    <path d="M642 0 V930" stroke="#ffffff" stroke-width="2"/>
+    <path d="M0 382 L690 278" stroke="#ffffff" stroke-width="2"/>
+    <path d="M0 616 H690 L840 690" stroke="#ffffff" stroke-width="2"/>
+  </g>
+
+  <g opacity="0.72">
+    <path d="M0 650 H690 L838 724" fill="none" stroke="#f0bd58" stroke-width="2"/>
+    <path d="M0 1264 H612" fill="none" stroke="#efbb54" stroke-width="2"/>
+    <path d="M692 330 L840 492" fill="none" stroke="#f2c978" stroke-width="1.6" opacity="0.72"/>
+  </g>
+
+  <g opacity="0.62">
+    <path d="M0 980 H590 L740 1022 V1118 H0 Z" fill="#f4f7f6"/>
+    <path d="M0 1076 H512" stroke="#cfd7d6" stroke-width="2" opacity="0.7"/>
+    <path d="M0 1124 H452" stroke="#cfd7d6" stroke-width="2" opacity="0.6"/>
+    <path d="M0 1172 H388" stroke="#cfd7d6" stroke-width="2" opacity="0.54"/>
+    <path d="M0 1220 H326" stroke="#cfd7d6" stroke-width="2" opacity="0.5"/>
+  </g>
+
+  <g opacity="0.5" filter="url(#softBlur)">
+    <ellipse cx="226" cy="1010" rx="190" ry="76" fill="#8ab4a8" opacity="0.26"/>
+    <ellipse cx="790" cy="1088" rx="126" ry="44" fill="#8ab4a8" opacity="0.18"/>
+  </g>
+
+  <g opacity="0.42">
+    <path d="M66 1008 C84 920 86 820 76 746" fill="none" stroke="#6d918d" stroke-width="5" stroke-linecap="round"/>
+    <path d="M80 820 C126 764 172 724 236 704" fill="none" stroke="#6d918d" stroke-width="3" stroke-linecap="round"/>
+    <path d="M82 874 C128 850 184 842 248 852" fill="none" stroke="#6d918d" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="230" cy="704" r="42" fill="#8cb5ad" opacity="0.35"/>
+    <circle cx="176" cy="734" r="54" fill="#9cc3ba" opacity="0.32"/>
+    <circle cx="240" cy="850" r="56" fill="#9bc0b8" opacity="0.26"/>
+    <circle cx="128" cy="830" r="54" fill="#8cb5ad" opacity="0.28"/>
+  </g>
+
+  <g opacity="0.94">
+    <path d="M0 1188 H2560 V1440 H0 Z" fill="url(#plaza)"/>
+    <path d="M0 1190 H2560 V1440 H0 Z" fill="url(#floorGrid)" opacity="0.72"/>
+    <path d="M0 1228 H2560" stroke="#e5eaea" stroke-width="2" opacity="0.82"/>
+  </g>
+
+  <g opacity="0.62">
+    <path d="M1642 1220 L2134 840 V1188 L1642 1188 Z" fill="none" stroke="#f2c162" stroke-width="1.4"/>
+    <path d="M1990 1440 L2560 784 V1440 Z" fill="url(#tealPanel)"/>
+    <path d="M2148 344 H2512 V598 H2148 Z" fill="url(#hatch)" opacity="0.55"/>
+    <path d="M2070 0 L2560 402" fill="none" stroke="#efbe58" stroke-width="1.4" opacity="0.64"/>
+    <path d="M2456 -88 C2448 96 2504 224 2560 300" fill="none" stroke="#efbe58" stroke-width="2" opacity="0.64"/>
+  </g>
+
+  <g opacity="0.18">
+    <path d="M760 782 L1190 708 L1450 862 L1030 920 Z" fill="#d8e7e6"/>
+    <path d="M784 1118 H1488" stroke="#d9dfdf" stroke-width="2"/>
+    <path d="M878 1088 H1376" stroke="#d9dfdf" stroke-width="2" opacity="0.7"/>
+  </g>
+
+  <rect width="2560" height="1440" fill="#ffffff" opacity="0.06"/>
+</svg>

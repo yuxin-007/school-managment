@@ -1,5 +1,6 @@
 .env
 .env.*
+!.env.example
 __pycache__/
 *.py[cod]
 .pytest_cache/
@@ -12,9 +13,24 @@ instance/
 .codex/
 .skill-work/
 .workbuddy/
+.pip-tmp/
+.cursor/
+.claude/
 
 frontend/node_modules/
 frontend/dist/
+frontend/.env.*
+frontend/vite-dev-*.log
+frontend/vite-dev-*.err.log
+mobile/node_modules/
+mobile/dist/
+mobile/.env.*
+mobile/app-debug.apk
+mobile/android/.gradle/
+mobile/android/build/
+mobile/android/app/build/
+mobile/android/local.properties
 
 .DS_Store
 Thumbs.db
+~$*.docx

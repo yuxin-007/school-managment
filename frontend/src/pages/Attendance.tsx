@@ -1,4 +1,6 @@
-﻿import React, { useEffect, useMemo, useState } from 'react'
+import { getApiErrorMessage, getBrowserErrorCode } from '@/lib/errors'
+import { getCurrentLocation } from '@/lib/geolocation'
+import React, { useEffect, useMemo, useState } from 'react'
 import {
   Alert,
   Button,
@@ -19,7 +21,6 @@ import {
   message,
 } from 'antd'
 import {
-  CalendarOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
   EnvironmentOutlined,
@@ -149,8 +150,8 @@ const AttendancePage: React.FC = () => {
       setTodayRecord(response.data.data || null)
       setPolicy(response.data.policy || null)
       setLocationLogs(response.data.location_logs || [])
-    } catch (error: any) {
-      message.error(error?.response?.data?.message || '考勤信息加载失败。')
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, '考勤信息加载失败。'))
     } finally {
       setLoading(false)
     }
@@ -164,8 +165,8 @@ const AttendancePage: React.FC = () => {
       ])
       setMySupplements(mineResponse.data.data || [])
       setPendingSupplements(pendingResponse.data.data || [])
-    } catch (error: any) {
-      message.error(error?.response?.data?.message || '补签申请加载失败。')
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, '补签申请加载失败。'))
     }
   }
 
@@ -180,26 +181,6 @@ const AttendancePage: React.FC = () => {
     )
   }, [pendingSupplements])
 
-  const getCurrentLocation = async () => {
-    if (!navigator.geolocation) {
-      throw new Error('当前浏览器不支持定位，请更换浏览器后重试。')
-    }
-
-    const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-      navigator.geolocation.getCurrentPosition(resolve, reject, {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0,
-      })
-    })
-
-    return {
-      latitude: position.coords.latitude,
-      longitude: position.coords.longitude,
-      accuracy: position.coords.accuracy,
-    }
-  }
-
   const handlePunch = async (type: SupplementType) => {
     setActionLoading(type)
     try {
@@ -207,15 +188,15 @@ const AttendancePage: React.FC = () => {
       const response = type === 'clock_in' ? await clockIn(location) : await clockOut(location)
       message.success(response.data.message || (type === 'clock_in' ? '上班打卡成功。' : '下班打卡成功。'))
       await loadToday()
-    } catch (error: any) {
-      if (error?.code === 1) {
+    } catch (error: unknown) {
+      if (getBrowserErrorCode(error) === 1) {
         message.error('定位权限被拒绝，请允许浏览器访问定位后再打卡。')
-      } else if (error?.code === 2) {
+      } else if (getBrowserErrorCode(error) === 2) {
         message.error('无法获取当前位置，请检查定位服务是否开启。')
-      } else if (error?.code === 3) {
+      } else if (getBrowserErrorCode(error) === 3) {
         message.error('定位超时，请在网络和定位稳定后重试。')
       } else {
-        message.error(error?.response?.data?.message || error?.message || '打卡失败。')
+        message.error(getApiErrorMessage(error, '打卡失败。'))
       }
     } finally {
       setActionLoading(null)
@@ -246,8 +227,8 @@ const AttendancePage: React.FC = () => {
       setSupplementModalOpen(false)
       supplementForm.resetFields()
       await Promise.all([loadToday(), loadSupplements()])
-    } catch (error: any) {
-      message.error(error?.response?.data?.message || '补签申请提交失败。')
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, '补签申请提交失败。'))
     } finally {
       setSubmittingSupplement(false)
     }
@@ -270,8 +251,8 @@ const AttendancePage: React.FC = () => {
           const response = await cancelAttendanceSupplement(item.id)
           message.success(response.data.message || '补签申请已撤回。')
           await loadSupplements()
-        } catch (error: any) {
-          message.error(error?.response?.data?.message || '撤回补签申请失败。')
+        } catch (error: unknown) {
+          message.error(getApiErrorMessage(error, '撤回补签申请失败。'))
         } finally {
           setWithdrawingId(null)
         }
@@ -306,8 +287,8 @@ const AttendancePage: React.FC = () => {
       approvalForm.resetFields()
       setSelectedPendingIds([])
       await Promise.all([loadToday(), loadSupplements()])
-    } catch (error: any) {
-      message.error(error?.response?.data?.message || '补签审批失败。')
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, '补签审批失败。'))
     } finally {
       setReviewSubmitting(false)
     }

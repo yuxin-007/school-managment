@@ -1,11 +1,16 @@
-﻿from flask import Blueprint, jsonify, request, send_file, redirect
+from flask import Blueprint, current_app, jsonify, request, send_file, session
 from flask_login import login_required, current_user
 from app.models import db, OrganizationNode, User, UserOrganization
+from app.services.email_delivery import EmailDeliveryError, send_verification_email
+from app.services.contact_identity import normalize_contact, validate_contact_available
+from app.services.user_preferences import apply_user_preferences, serialize_user_preferences
 from app.utils.permissions import super_admin_required
+from app.utils.response import paginated_response
 import pandas as pd
 import io
 import csv
 from datetime import datetime, timedelta
+import secrets
 import xlsxwriter
 from sqlalchemy import or_
 from app.services.organization_service import ensure_user_chain_memberships
@@ -19,9 +24,82 @@ from app.utils.org_permissions import (
 )
 
 bp = Blueprint('user', __name__, url_prefix='/user')
+CONTACT_CODE_EXPIRES_MINUTES = 10
+CONTACT_CODE_STORE = {}
 
-FRONTEND_URL = ''
 
+def contact_code_session_key(contact_type):
+    return f'contact_binding_token_{contact_type}'
+
+
+def contact_code_debug_payload(code):
+    data = {'expires_in': CONTACT_CODE_EXPIRES_MINUTES * 60}
+    debug_enabled = current_app.config.get(
+        'AUTH_CODE_DEBUG',
+        current_app.config.get('TESTING') or current_app.config.get('ENV') != 'production',
+    )
+    if debug_enabled:
+        data['debug_code'] = code
+    return data
+
+
+def store_contact_code(contact_type, contact):
+    token = secrets.token_urlsafe(24)
+    code = f'{secrets.randbelow(1000000):06d}'
+    CONTACT_CODE_STORE[token] = {
+        'user_id': current_user.id,
+        'contact_type': contact_type,
+        'contact': normalize_contact(contact),
+        'code': code,
+        'expires_at': datetime.utcnow() + timedelta(minutes=CONTACT_CODE_EXPIRES_MINUTES),
+    }
+    session[contact_code_session_key(contact_type)] = token
+    return code
+
+
+def discard_contact_code(contact_type):
+    token = session.get(contact_code_session_key(contact_type))
+    CONTACT_CODE_STORE.pop(token, None)
+    session.pop(contact_code_session_key(contact_type), None)
+
+
+def verify_contact_code(contact_type, contact, code):
+    token = session.get(contact_code_session_key(contact_type))
+    record = CONTACT_CODE_STORE.get(token)
+    if not record:
+        return False, '请先获取验证码。'
+
+    if datetime.utcnow() > record['expires_at']:
+        CONTACT_CODE_STORE.pop(token, None)
+        session.pop(contact_code_session_key(contact_type), None)
+        return False, '验证码已过期，请重新获取。'
+
+    if (
+        record['user_id'] != current_user.id
+        or record['contact_type'] != contact_type
+        or record['contact'] != normalize_contact(contact)
+        or record['code'] != (code or '').strip()
+    ):
+        return False, '验证码错误。'
+
+    CONTACT_CODE_STORE.pop(token, None)
+    session.pop(contact_code_session_key(contact_type), None)
+    return True, None
+
+
+def contact_changed(contact_type, next_value):
+    return normalize_contact(getattr(current_user, contact_type)) != normalize_contact(next_value)
+
+
+def ensure_contact_code_verified(data, contact_type):
+    if contact_type not in data or not contact_changed(contact_type, data.get(contact_type)):
+        return True, None
+
+    next_contact = normalize_contact(data.get(contact_type))
+    if not next_contact:
+        return False, '暂不支持在个人设置中解绑邮箱或手机号，请联系管理员处理。'
+
+    return verify_contact_code(contact_type, next_contact, data.get(f'{contact_type}_code'))
 
 def get_primary_user_relation(user):
     return next((relation for relation in user.user_organizations if relation.is_primary), None)
@@ -77,7 +155,7 @@ def apply_primary_organization(user, primary_node_id):
             relation.is_primary = False
         return
 
-    node = OrganizationNode.query.get(primary_node_id)
+    node = db.session.get(OrganizationNode, primary_node_id)
     if not node:
         raise ValueError('目标主组织不存在。')
 
@@ -105,33 +183,41 @@ def build_node_path(node):
     return ' / '.join(path)
 
 
+def apply_user_keyword_filter(query, keyword):
+    keyword = (keyword or '').strip()
+    if not keyword:
+        return query
+
+    pattern = f'%{keyword}%'
+    return query.filter(
+        or_(
+            User.username.like(pattern),
+            User.real_name.like(pattern),
+            User.employee_id.like(pattern),
+            User.student_id.like(pattern),
+            User.email.like(pattern),
+            User.phone.like(pattern),
+        )
+    )
+
+
+def apply_user_contact_filters(query, email='', phone=''):
+    email = (email or '').strip()
+    phone = (phone or '').strip()
+
+    if email:
+        query = query.filter(User.email.like(f'%{email}%'))
+    if phone:
+        query = query.filter(User.phone.like(f'%{phone}%'))
+    return query
+
+
 def apply_primary_filter(query, has_primary):
     if has_primary == 'true':
         return query.filter(User.user_organizations.any(UserOrganization.is_primary == True))
     if has_primary == 'false':
         return query.filter(~User.user_organizations.any(UserOrganization.is_primary == True))
     return query
-
-
-@bp.route('/staff-info')
-@login_required
-@super_admin_required
-def staff_info():
-    return redirect(FRONTEND_URL + '/users')
-
-
-@bp.route('/student-info')
-@login_required
-@super_admin_required
-def student_info():
-    return redirect(FRONTEND_URL + '/users')
-
-
-@bp.route('/statistics')
-@login_required
-@super_admin_required
-def statistics():
-    return redirect(FRONTEND_URL + '/users')
 
 
 @bp.route('/api/profile', methods=['GET'])
@@ -144,17 +230,66 @@ def get_profile():
     })
 
 
+@bp.route('/api/contact-code', methods=['POST'])
+@login_required
+def send_contact_code():
+    data = request.get_json() or {}
+    contact_type = (data.get('contact_type') or '').strip()
+    contact = normalize_contact(data.get('contact'))
+
+    if contact_type not in {'email', 'phone'}:
+        return jsonify({'success': False, 'message': '请选择邮箱或手机号。'}), 400
+    if not contact:
+        return jsonify({'success': False, 'message': '请填写需要绑定的邮箱或手机号。'}), 400
+
+    try:
+        validate_contact_available(
+            email=contact if contact_type == 'email' else None,
+            phone=contact if contact_type == 'phone' else None,
+            exclude_user_id=current_user.id,
+        )
+    except ValueError as error:
+        return jsonify({'success': False, 'message': str(error)}), 400
+
+    code = store_contact_code(contact_type, contact)
+    if contact_type == 'email':
+        try:
+            send_verification_email(contact, code, 'bind_email')
+        except EmailDeliveryError as error:
+            discard_contact_code(contact_type)
+            return jsonify({'success': False, 'message': str(error)}), 503
+    return jsonify({
+        'success': True,
+        'message': '验证码已发送，请完成验证后保存。',
+        'data': contact_code_debug_payload(code),
+    })
+
+
 @bp.route('/api/profile', methods=['PUT'])
 @login_required
 def update_profile():
     """更新当前用户信息"""
-    data = request.get_json()
+    data = request.get_json() or {}
+    try:
+        validate_contact_available(
+            email=data.get('email') if 'email' in data else None,
+            phone=data.get('phone') if 'phone' in data else None,
+            exclude_user_id=current_user.id,
+        )
+    except ValueError as error:
+        return jsonify({'success': False, 'message': str(error)}), 400
+
+    for contact_type in ('email', 'phone'):
+        verified, error_message = ensure_contact_code_verified(data, contact_type)
+        if not verified:
+            return jsonify({'success': False, 'message': error_message}), 400
+
     if 'real_name' in data:
         current_user.real_name = data['real_name']
     if 'email' in data:
-        current_user.email = data['email']
+        current_user.email = normalize_contact(data['email'])
     if 'phone' in data:
-        current_user.phone = data['phone']
+        current_user.phone = normalize_contact(data['phone'])
     db.session.commit()
     return jsonify({'success': True, 'data': current_user.to_dict()})
 
@@ -184,26 +319,20 @@ def change_password():
 @login_required
 def get_preferences():
     """获取用户偏好设置"""
-    return jsonify({
-        'success': True,
-        'data': {
-            'theme': current_user.theme or 'light',
-            'language': current_user.language or 'zh-CN'
-        }
-    })
+    return jsonify({'success': True, 'data': serialize_user_preferences(current_user)})
 
 
 @bp.route('/api/preferences', methods=['PUT'])
 @login_required
 def update_preferences():
     """更新用户偏好设置"""
-    data = request.get_json()
-    if 'theme' in data:
-        current_user.theme = data['theme']
-    if 'language' in data:
-        current_user.language = data['language']
+    data = request.get_json() or {}
+    try:
+        updated_preferences = apply_user_preferences(current_user, data)
+    except ValueError as error:
+        return jsonify({'success': False, 'message': str(error)}), 400
     db.session.commit()
-    return jsonify({'success': True, 'message': '偏好设置已更新'})
+    return jsonify({'success': True, 'message': '偏好设置已更新', 'data': updated_preferences})
 
 
 @bp.route('/api/users', methods=['GET'])
@@ -218,25 +347,14 @@ def get_users():
     query = User.query.filter(User.role != 'super_admin')
     query = apply_primary_filter(query, has_primary)
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
-    return jsonify({
-        'success': True,
-        'data': [serialize_user_payload(u) for u in pagination.items],
-        'pagination': {
-            'page': page,
-            'per_page': per_page,
-            'total': pagination.total,
-            'pages': pagination.pages,
-            'has_next': pagination.has_next,
-            'has_prev': pagination.has_prev
-        }
-    })
+    return paginated_response(pagination, serialize_user_payload)
 
 
 @bp.route('/api/users', methods=['POST'])
 @login_required
 @super_admin_required
 def add_user():
-    data = request.get_json()
+    data = request.get_json() or {}
     required = ['username', 'password', 'real_name', 'role']
     for field in required:
         if not data.get(field):
@@ -246,11 +364,15 @@ def add_user():
     # 禁止创建系统管理员
     if data['role'] == 'super_admin':
         return jsonify({'success': False, 'message': '系统管理员由系统创建，此处不可添加'})
+    try:
+        validate_contact_available(email=data.get('email'), phone=data.get('phone'))
+    except ValueError as error:
+        return jsonify({'success': False, 'message': str(error)}), 400
     user = User(
         username=data['username'],
         real_name=data['real_name'],
-        email=data.get('email'),
-        phone=data.get('phone'),
+        email=normalize_contact(data.get('email')),
+        phone=normalize_contact(data.get('phone')),
         role=data['role'],
         position=data.get('position'),
         employee_id=data.get('employee_id'),
@@ -279,7 +401,7 @@ def add_user():
 @super_admin_required
 def get_user(user_id):
     """获取单个用户详情"""
-    user = User.query.get_or_404(user_id)
+    user = db.get_or_404(User, user_id)
     payload = serialize_user_payload(user)
     payload['organization_relations'] = serialize_user_organization_relations(user)
     return jsonify({
@@ -292,17 +414,25 @@ def get_user(user_id):
 @login_required
 @super_admin_required
 def update_user(user_id):
-    user = User.query.get_or_404(user_id)
+    user = db.get_or_404(User, user_id)
     # 禁止修改系统管理员
     if user.role == 'super_admin':
         return jsonify({'success': False, 'message': '系统管理员不可修改'})
-    data = request.get_json()
+    data = request.get_json() or {}
+    try:
+        validate_contact_available(
+            email=data.get('email') if 'email' in data else None,
+            phone=data.get('phone') if 'phone' in data else None,
+            exclude_user_id=user.id,
+        )
+    except ValueError as error:
+        return jsonify({'success': False, 'message': str(error)}), 400
     if 'real_name' in data:
         user.real_name = data['real_name']
     if 'email' in data:
-        user.email = data['email']
+        user.email = normalize_contact(data['email'])
     if 'phone' in data:
-        user.phone = data['phone']
+        user.phone = normalize_contact(data['phone'])
     if 'role' in data:
         # 禁止修改为系统管理员
         if data['role'] == 'super_admin':
@@ -338,7 +468,7 @@ def update_user(user_id):
 def delete_user(user_id):
     if user_id == current_user.id:
         return jsonify({'success': False, 'message': '不能删除自己'})
-    user = User.query.get_or_404(user_id)
+    user = db.get_or_404(User, user_id)
     # 禁止删除系统管理员
     if user.role == 'super_admin':
         return jsonify({'success': False, 'message': '系统管理员不可删除'})
@@ -352,18 +482,13 @@ def delete_user(user_id):
 @super_admin_required
 def search_users():
     keyword = request.args.get('keyword', '').strip()
+    email = request.args.get('email', '').strip()
+    phone = request.args.get('phone', '').strip()
     role = request.args.get('role', '').strip()
     has_primary = request.args.get('has_primary', '').strip().lower()
     query = User.query.filter(User.role != 'super_admin')
-    if keyword:
-        query = query.filter(
-            or_(
-                User.username.like(f'%{keyword}%'),
-                User.real_name.like(f'%{keyword}%'),
-                User.employee_id.like(f'%{keyword}%'),
-                User.student_id.like(f'%{keyword}%')
-            )
-        )
+    query = apply_user_keyword_filter(query, keyword)
+    query = apply_user_contact_filters(query, email=email, phone=phone)
     if role:
         query = query.filter_by(role=role)
     query = apply_primary_filter(query, has_primary)
@@ -464,7 +589,7 @@ def batch_update_primary_organization():
             'data': {'updated_count': len(users)},
         })
 
-    node = OrganizationNode.query.get(primary_node_id)
+    node = db.session.get(OrganizationNode, primary_node_id)
     if not node:
         return jsonify({'success': False, 'message': '目标主组织不存在。'}), 400
 
@@ -740,11 +865,13 @@ def get_student_by_org():
 def export_users():
     format_type = request.args.get('format', 'excel')
     keyword = request.args.get('keyword', '')
+    email = request.args.get('email', '')
+    phone = request.args.get('phone', '')
     role = request.args.get('role', '')
     has_primary = request.args.get('has_primary', '').strip().lower()
     query = User.query
-    if keyword:
-        query = query.filter(or_(User.username.like(f'%{keyword}%'), User.real_name.like(f'%{keyword}%')))
+    query = apply_user_keyword_filter(query, keyword)
+    query = apply_user_contact_filters(query, email=email, phone=phone)
     if role:
         query = query.filter_by(role=role)
     query = query.filter(User.role != 'super_admin')

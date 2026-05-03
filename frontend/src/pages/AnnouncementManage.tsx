@@ -1,4 +1,6 @@
-﻿import React, { useEffect, useMemo, useState } from 'react'
+import { getApiErrorMessage, hasFormErrorFields } from '@/lib/errors'
+import { priorityColorMap } from '@/features/announcements/constants'
+import React, { useEffect, useMemo, useState } from 'react'
 import {
   Badge,
   Button,
@@ -81,12 +83,6 @@ const priorityOptions = [
   { label: '紧急', value: 'urgent' },
 ]
 
-const priorityColorMap: Record<string, string> = {
-  normal: 'default',
-  important: 'orange',
-  urgent: 'red',
-}
-
 const AnnouncementManagePage: React.FC = () => {
   const [announcements, setAnnouncements] = useState<AnnouncementItem[]>([])
   const [loading, setLoading] = useState(false)
@@ -107,8 +103,8 @@ const AnnouncementManagePage: React.FC = () => {
     try {
       const response = await getAllAnnouncements({ page: 1, per_page: 100 })
       setAnnouncements(response.data.data || [])
-    } catch (error: any) {
-      message.error(error?.response?.data?.message || '公告列表加载失败。')
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, '公告列表加载失败。'))
     } finally {
       setLoading(false)
     }
@@ -182,8 +178,8 @@ const AnnouncementManagePage: React.FC = () => {
     try {
       const response = await getAnnouncementDetail(item.id, { increment_view: false })
       setDetailItem(response.data.data || item)
-    } catch (error: any) {
-      message.error(error?.response?.data?.message || '公告详情加载失败。')
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, '公告详情加载失败。'))
       setDetailOpen(false)
     } finally {
       setDetailLoading(false)
@@ -208,9 +204,9 @@ const AnnouncementManagePage: React.FC = () => {
       }
       setModalOpen(false)
       await loadAnnouncements()
-    } catch (error: any) {
-      if (!error?.errorFields) {
-        message.error(error?.response?.data?.message || '公告保存失败。')
+    } catch (error: unknown) {
+      if (!hasFormErrorFields(error)) {
+        message.error(getApiErrorMessage(error, '公告保存失败。'))
       }
     } finally {
       setSubmitting(false)
@@ -223,8 +219,8 @@ const AnnouncementManagePage: React.FC = () => {
       const response = await deleteAnnouncement(id)
       message.success(response.data.message || '公告已删除。')
       await loadAnnouncements()
-    } catch (error: any) {
-      message.error(error?.response?.data?.message || '公告删除失败。')
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, '公告删除失败。'))
     } finally {
       setActionId(null)
     }
@@ -236,8 +232,8 @@ const AnnouncementManagePage: React.FC = () => {
       const response = await updateAnnouncement(item.id, changes)
       message.success(response.data.message || '公告状态已更新。')
       await loadAnnouncements()
-    } catch (error: any) {
-      message.error(error?.response?.data?.message || '公告状态更新失败。')
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, '公告状态更新失败。'))
     } finally {
       setActionId(null)
     }

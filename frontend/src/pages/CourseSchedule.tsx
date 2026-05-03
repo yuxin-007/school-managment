@@ -1,4 +1,6 @@
-﻿import React, { useEffect, useMemo, useState } from 'react'
+import { getApiErrorMessage } from '@/lib/errors'
+import request from '@/lib/request'
+import React, { useEffect, useMemo, useState } from 'react'
 import {
   Card,
   Col,
@@ -14,7 +16,6 @@ import {
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { CalendarOutlined, ClockCircleOutlined, EnvironmentOutlined, ReadOutlined } from '@ant-design/icons'
-import { getSchedule } from '@/api'
 
 const { Paragraph, Text, Title } = Typography
 
@@ -40,10 +41,10 @@ const CourseSchedulePage: React.FC = () => {
   const loadSchedule = async () => {
     setLoading(true)
     try {
-      const response = await getSchedule()
+      const response = await request.get('/course/api/courses/schedule', { skipErrorMessage: true })
       setRecords(response.data.data || [])
-    } catch (error: any) {
-      message.error(error?.response?.data?.message || '课表加载失败。')
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, '课表加载失败。'))
     } finally {
       setLoading(false)
     }

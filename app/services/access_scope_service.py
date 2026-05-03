@@ -118,3 +118,12 @@ def get_viewable_courses(user, include_inactive=False) -> list[Course]:
 
 def get_manageable_course_ids(user) -> set[int]:
     return {course.id for course in get_viewable_courses(user, include_inactive=True)}
+
+
+def can_manage_course(user, course) -> bool:
+    """Check if a user can manage a course (edit, grade, create assignments, etc.)."""
+    if user.role == ROLE_SUPER_ADMIN:
+        return True
+    if user.role == ROLE_COLLEGE_ADMIN:
+        return course.id in get_manageable_course_ids(user)
+    return user.role == ROLE_STAFF and course.teacher_id == user.id

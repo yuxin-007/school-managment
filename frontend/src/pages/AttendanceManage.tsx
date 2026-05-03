@@ -1,4 +1,5 @@
-﻿import React, { useEffect, useState } from 'react'
+import { getApiErrorMessage, getBrowserErrorCode } from '@/lib/errors'
+import React, { useEffect, useState } from 'react'
 import {
   Alert,
   Button,
@@ -213,6 +214,8 @@ const AttendanceManagePage: React.FC = () => {
       loadStats()
       loadPolicy()
     }
+    // Initial admin dashboard load; subsequent refreshes are triggered by user actions.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin])
 
   const handleSearch = () => loadRecords(1, filters)
@@ -237,8 +240,8 @@ const AttendanceManagePage: React.FC = () => {
       const response = await updateAttendanceSettings(payload)
       message.success(response.data.message || '考勤规则已更新')
       await loadPolicy()
-    } catch (error: any) {
-      message.error(error?.response?.data?.message || '考勤规则保存失败')
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, '考勤规则保存失败'))
     } finally {
       setSavingPolicy(false)
     }
@@ -266,12 +269,12 @@ const AttendanceManagePage: React.FC = () => {
       })
 
       message.success('已自动填入当前位置坐标。')
-    } catch (error: any) {
-      if (error?.code === 1) {
+    } catch (error: unknown) {
+      if (getBrowserErrorCode(error) === 1) {
         message.error('定位权限被拒绝，请允许浏览器访问定位后重试。')
-      } else if (error?.code === 2) {
+      } else if (getBrowserErrorCode(error) === 2) {
         message.error('无法获取当前位置，请确认设备定位服务已开启。')
-      } else if (error?.code === 3) {
+      } else if (getBrowserErrorCode(error) === 3) {
         message.error('获取当前位置超时，请稍后再试。')
       } else {
         message.error('当前位置获取失败，请稍后重试。')

@@ -67,30 +67,6 @@ def ensure_user_chain_memberships(user: User, target_node: OrganizationNode) -> 
     return created
 
 
-def sync_organization_chains() -> bool:
-    users = (
-        User.query.options(
-            joinedload(User.user_organizations)
-            .joinedload(UserOrganization.node)
-            .joinedload(OrganizationNode.parent)
-        )
-        .filter(User.role != ROLE_SUPER_ADMIN)
-        .all()
-    )
-
-    changed = False
-    for user in users:
-        relation_nodes = [relation.node for relation in user.user_organizations if relation.node]
-        for node in relation_nodes:
-            if ensure_user_chain_memberships(user, node):
-                changed = True
-
-    if changed:
-        db.session.commit()
-
-    return changed
-
-
 def build_tree_for_user(user) -> list[dict]:
     nodes = get_accessible_nodes(user)
     if not nodes:
@@ -180,11 +156,7 @@ def get_organization_overview(user) -> dict:
         base_user_query = User.query.filter(User.role != ROLE_SUPER_ADMIN)
         unassigned_count = base_user_query.filter(~User.user_organizations.any()).count()
     else:
-        unassigned_count = (
-            User.query.filter(User.role.in_([ROLE_STAFF, ROLE_STUDENT]))
-            .filter(~User.user_organizations.any())
-            .count()
-        )
+        unassigned_count = 0
 
     root_names = [node.name for node in nodes if node.parent_id not in accessible_ids]
 

@@ -1,4 +1,5 @@
-﻿import React, { useEffect, useMemo, useState } from 'react'
+import { getApiErrorMessage } from '@/lib/errors'
+import React, { useEffect, useMemo, useState } from 'react'
 import {
   Button,
   Card,
@@ -72,7 +73,7 @@ const AnnouncementsPage: React.FC = () => {
   const loadAnnouncements = async (page = 1, category = categoryFilter) => {
     setLoading(true)
     try {
-      const params: Record<string, any> = { page, per_page: pagination.pageSize }
+      const params: Record<string, string | number | boolean | undefined> = { page, per_page: pagination.pageSize }
       if (category && category !== 'all') {
         params.category = category
       }
@@ -86,8 +87,8 @@ const AnnouncementsPage: React.FC = () => {
           total: response.data.pagination?.total || 0,
         }))
       }
-    } catch (error: any) {
-      message.error(error?.response?.data?.message || '公告加载失败。')
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, '公告加载失败。'))
     } finally {
       setLoading(false)
     }
@@ -95,6 +96,8 @@ const AnnouncementsPage: React.FC = () => {
 
   useEffect(() => {
     loadAnnouncements()
+    // Initial load only; pagination changes are handled by table events.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const filteredAnnouncements = useMemo(() => {
@@ -141,8 +144,8 @@ const AnnouncementsPage: React.FC = () => {
           current.map((entry) => (entry.id === item.id ? { ...entry, view_count: nextDetail.view_count } : entry)),
         )
       }
-    } catch (error: any) {
-      message.error(error?.response?.data?.message || '公告详情加载失败。')
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, '公告详情加载失败。'))
     } finally {
       setDetailLoading(false)
     }

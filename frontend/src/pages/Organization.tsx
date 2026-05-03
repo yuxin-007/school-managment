@@ -1,4 +1,5 @@
-﻿import React, { useEffect, useMemo, useState } from 'react'
+import { getApiErrorMessage } from '@/lib/errors'
+import React, { useEffect, useMemo, useState } from 'react'
 import {
   Alert,
   Badge,
@@ -58,11 +59,12 @@ import type {
   OrganizationNodePathItem,
   OrganizationOverview,
   OrganizationTreeNode,
+  OrganizationNodeType,
   OrganizationNodeUsersMeta,
   OrganizationUserRecord,
 } from '@/features/organization/types'
 
-const { Paragraph, Text, Title } = Typography
+const { Text, Title } = Typography
 
 type NodeModalMode = 'create' | 'edit'
 
@@ -137,7 +139,7 @@ const OrganizationPage: React.FC = () => {
   const [keyword, setKeyword] = useState('')
   const [nodeUsers, setNodeUsers] = useState<OrganizationUserRecord[]>([])
   const [nodePath, setNodePath] = useState<OrganizationNodePathItem[]>([])
-  const [creatableTypes, setCreatableTypes] = useState<string[]>([])
+  const [creatableTypes, setCreatableTypes] = useState<OrganizationNodeType[]>([])
   const [assignableUserCount, setAssignableUserCount] = useState(0)
   const [memberSummary, setMemberSummary] = useState<OrganizationNodeUsersMeta['member_summary'] | null>(null)
   const [nodePermissions, setNodePermissions] = useState<OrganizationNodeUsersMeta['permissions'] | null>(null)
@@ -271,6 +273,8 @@ const OrganizationPage: React.FC = () => {
 
   useEffect(() => {
     loadOrganization()
+    // Initial tree load; organization mutations refresh this data explicitly.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -370,9 +374,9 @@ const OrganizationPage: React.FC = () => {
       }
       setNodeModalOpen(false)
       await loadOrganization()
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(error)
-      message.error(error.response?.data?.message || '组织节点保存失败。')
+      message.error(getApiErrorMessage(error, '组织节点保存失败。'))
     } finally {
       setSaving(false)
     }
@@ -391,9 +395,9 @@ const OrganizationPage: React.FC = () => {
       message.success('组织节点已删除。')
       setSelectedNodeId(null)
       await loadOrganization()
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(error)
-      message.error(error.response?.data?.message || '组织节点删除失败。')
+      message.error(getApiErrorMessage(error, '组织节点删除失败。'))
     }
   }
 
@@ -410,9 +414,9 @@ const OrganizationPage: React.FC = () => {
       await moveOrgNode(selectedNode.id, direction)
       message.success(direction === 'up' ? '节点已上移。' : '节点已下移。')
       await loadOrganization()
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(error)
-      message.error(error.response?.data?.message || '节点排序调整失败。')
+      message.error(getApiErrorMessage(error, '节点排序调整失败。'))
     }
   }
 
@@ -476,9 +480,9 @@ const OrganizationPage: React.FC = () => {
       }
       setAssignModalOpen(false)
       await Promise.all([loadOrganization(), loadNodeUsers(selectedNode.id)])
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(error)
-      message.error(error.response?.data?.message || '人员分配失败。')
+      message.error(getApiErrorMessage(error, '人员分配失败。'))
     } finally {
       setAssigning(false)
     }
@@ -497,9 +501,9 @@ const OrganizationPage: React.FC = () => {
       message.success('人员已移出当前节点。')
       setSelectedMemberIds((current) => current.filter((item) => item !== userId))
       await Promise.all([loadOrganization(), loadNodeUsers(selectedNode.id)])
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(error)
-      message.error(error.response?.data?.message || '人员移除失败。')
+      message.error(getApiErrorMessage(error, '人员移除失败。'))
     }
   }
 
@@ -525,9 +529,9 @@ const OrganizationPage: React.FC = () => {
       message.success(`已从当前节点移除 ${selectedMemberIds.length} 名成员。`)
       setSelectedMemberIds([])
       await Promise.all([loadOrganization(), loadNodeUsers(selectedNode.id)])
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(error)
-      message.error(error.response?.data?.message || '批量移除失败。')
+      message.error(getApiErrorMessage(error, '批量移除失败。'))
     } finally {
       setRemovingBatch(false)
     }
@@ -601,40 +605,28 @@ const OrganizationPage: React.FC = () => {
   ]
 
   return (
-    <Space direction="vertical" size={20} style={{ width: '100%' }}>
-      <Card bordered={false} style={{ borderRadius: 24 }}>
-        <Row gutter={[24, 24]} align="middle">
-          <Col xs={24} lg={16}>
-            <Space direction="vertical" size={8}>
-              <Space>
-                <Badge color="#1677ff" />
-                <Text type="secondary">组织中心</Text>
-              </Space>
-              <Title level={3} style={{ margin: 0 }}>
-                以组织树维护学校层级、权限边界与人员归属
-              </Title>
-              <Paragraph type="secondary" style={{ marginBottom: 0 }}>
-                组织节点、人员分配和下游模块围绕同一套组织层级联动。
-              </Paragraph>
-            </Space>
-          </Col>
-          <Col xs={24} lg={8}>
-            <Space wrap style={{ justifyContent: 'flex-end', width: '100%' }}>
-              <Button icon={<ReloadOutlined />} onClick={loadOrganization}>
-                刷新数据
-              </Button>
-              <Button
-                type="primary"
-                icon={<PlusOutlined />}
-                disabled={!canCreateFromCurrent}
-                onClick={() => prepareCreateModal(selectedNode?.id)}
-              >
-                {quickCreateLabel}
-              </Button>
-            </Space>
-          </Col>
-        </Row>
-      </Card>
+    <div className="page-shell">
+      <section className="page-hero">
+        <div className="page-eyebrow">Campus Axis Organization</div>
+        <h2 className="page-title">组织中心</h2>
+        <p className="page-description">
+          组织树是这套系统的结构骨架。这里负责维护学校层级、上下级节点关系、人员下发链路，以及各业务模块的组织边界。
+        </p>
+        <div className="page-actions">
+          <Badge color="#1677ff" text="组织主线" />
+          <Button icon={<ReloadOutlined />} onClick={loadOrganization}>
+            刷新数据
+          </Button>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            disabled={!canCreateFromCurrent}
+            onClick={() => prepareCreateModal(selectedNode?.id)}
+          >
+            {quickCreateLabel}
+          </Button>
+        </div>
+      </section>
 
       <Row gutter={[16, 16]}>
         <Col xs={24} sm={12} xl={6}>
@@ -859,7 +851,7 @@ const OrganizationPage: React.FC = () => {
                       <Space wrap>
                         {(creatableTypes || []).length > 0 ? (
                           creatableTypes.map((item) => {
-                            const visual = getOrganizationVisual(item as any, overview?.catalog)
+                            const visual = getOrganizationVisual(item, overview?.catalog)
                             return <Tag key={item}>{visual.label}</Tag>
                           })
                         ) : (
@@ -1103,7 +1095,7 @@ const OrganizationPage: React.FC = () => {
           </Text>
         </Form>
       </Modal>
-    </Space>
+    </div>
   )
 }
 

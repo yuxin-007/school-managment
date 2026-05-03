@@ -40,6 +40,9 @@ class OrganizationNode(db.Model):
 
 class UserOrganization(db.Model):
     __tablename__ = 'user_organizations'
+    __table_args__ = (
+        db.UniqueConstraint('user_id', 'node_id', name='uq_user_organization_user_node'),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
@@ -72,16 +75,25 @@ class User(UserMixin, db.Model):
     position = db.Column(db.String(100))
     employee_id = db.Column(db.String(50))
     student_id = db.Column(db.String(50))
-    grade = db.Column(db.String(50))      # 骞寸骇锛堝锛?024绾э級
-    major = db.Column(db.String(100))    # 涓撲笟
+    grade = db.Column(db.String(50))      # 年级（如：2024级）
+    major = db.Column(db.String(100))    # 专业
     is_active = db.Column(db.Boolean, default=True)
     last_login = db.Column(db.DateTime)
+    failed_login_count = db.Column(db.Integer, default=0)
+    locked_until = db.Column(db.DateTime)
+    last_failed_login_at = db.Column(db.DateTime)
     theme = db.Column(db.String(20), default='light')     # light/dark
     language = db.Column(db.String(10), default='zh-CN') # zh-CN/en
     created_at = db.Column(db.DateTime, default=get_beijing_time)
     updated_at = db.Column(db.DateTime, default=get_beijing_time, onupdate=get_beijing_time)
 
     user_organizations = db.relationship('UserOrganization', backref='user', cascade='all, delete-orphan')
+    notification_preferences = db.relationship(
+        'UserNotificationPreference',
+        backref='user',
+        uselist=False,
+        cascade='all, delete-orphan',
+    )
 
     def set_password(self, raw_password):
         """Set a hashed password."""
@@ -117,18 +129,6 @@ class User(UserMixin, db.Model):
             node_set.add(child.id)
             self._add_children_ids(child, node_set)
 
-    def get_supervisor(self):
-        primary_uo = next((uo for uo in self.user_organizations if uo.is_primary), None)
-        if not primary_uo or not primary_uo.node.parent:
-            return None
-        parent_node = primary_uo.node.parent
-        for uo in parent_node.node_users:
-            if uo.role_in_node in ['负责人', '管理员', '主管']:
-                return uo.user
-        if parent_node.node_users:
-            return parent_node.node_users[0].user
-        return None
-
     def get_role_display(self):
         role_map = {
             'super_admin': '系统管理员',
@@ -159,6 +159,31 @@ class User(UserMixin, db.Model):
             'last_login': self.last_login.strftime('%Y-%m-%d %H:%M:%S') if self.last_login else '',
             'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else '',
             'department_name': primary_node.name if primary_node else '未分配'
+        }
+
+
+class UserNotificationPreference(db.Model):
+    __tablename__ = 'user_notification_preferences'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, unique=True)
+    leave_enabled = db.Column(db.Boolean, default=True, nullable=False)
+    attendance_enabled = db.Column(db.Boolean, default=True, nullable=False)
+    announcement_enabled = db.Column(db.Boolean, default=True, nullable=False)
+    grade_enabled = db.Column(db.Boolean, default=True, nullable=False)
+    course_enabled = db.Column(db.Boolean, default=True, nullable=False)
+    system_enabled = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=get_beijing_time)
+    updated_at = db.Column(db.DateTime, default=get_beijing_time, onupdate=get_beijing_time)
+
+    def to_dict(self):
+        return {
+            'leave': self.leave_enabled,
+            'attendance': self.attendance_enabled,
+            'announcement': self.announcement_enabled,
+            'grade': self.grade_enabled,
+            'course': self.course_enabled,
+            'system': self.system_enabled,
         }
 
 
@@ -341,13 +366,13 @@ class OperationLog(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    action = db.Column(db.String(100), nullable=False)       # 鎿嶄綔绫诲瀷
-    target_type = db.Column(db.String(50))                    # 鐩爣绫诲瀷锛圲ser/Course/Leave绛夛級
-    target_id = db.Column(db.Integer)                         # 鐩爣ID
-    target_name = db.Column(db.String(200))                   # 鐩爣鍚嶇О锛堟柟渚挎樉绀猴級
-    detail = db.Column(db.Text)                               # 鎿嶄綔璇︽儏
-    ip_address = db.Column(db.String(50))                     # IP鍦板潃
-    user_agent = db.Column(db.String(500))                    # 娴忚鍣ㄤ俊鎭?
+    action = db.Column(db.String(100), nullable=False)       # 操作类型
+    target_type = db.Column(db.String(50))                    # 目标类型（User/Course/Leave等）
+    target_id = db.Column(db.Integer)                         # 目标ID
+    target_name = db.Column(db.String(200))                   # 目标名称（方便展示）
+    detail = db.Column(db.Text)                               # 操作详情
+    ip_address = db.Column(db.String(50))                     # IP地址
+    user_agent = db.Column(db.String(500))                    # 浏览器信息
     created_at = db.Column(db.DateTime, default=get_beijing_time)
 
     user = db.relationship('User', backref='operation_logs')
@@ -397,8 +422,8 @@ class Announcement(db.Model):
     author_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     is_pinned = db.Column(db.Boolean, default=False)
     is_active = db.Column(db.Boolean, default=True)
-    start_date = db.Column(db.Date)                             # 鍏憡鐢熸晥寮€濮嬫棩鏈?
-    end_date = db.Column(db.Date)                              # 鍏憡澶辨晥鏃ユ湡
+    start_date = db.Column(db.Date)                             # 公告生效开始日期
+    end_date = db.Column(db.Date)                              # 公告失效日期
     view_count = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=get_beijing_time)
     updated_at = db.Column(db.DateTime, default=get_beijing_time, onupdate=get_beijing_time)
@@ -442,8 +467,8 @@ class Notification(db.Model):
     title = db.Column(db.String(200), nullable=False)
     content = db.Column(db.Text)
     notification_type = db.Column(db.String(50), nullable=False)   # leave_approved/leave_rejected/course_change/announcement
-    related_id = db.Column(db.Integer)                              # 鍏宠仈璁板綍ID
-    related_type = db.Column(db.String(50))                         # 鍏宠仈绫诲瀷
+    related_id = db.Column(db.Integer)                              # 关联记录ID
+    related_type = db.Column(db.String(50))                         # 关联类型
     is_read = db.Column(db.Boolean, default=False)
     read_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=get_beijing_time)
@@ -456,6 +481,10 @@ class Notification(db.Model):
             'leave_pending': '待审批请假', 'leave_transfer': '审批已转交',
             'course_change': '课程变动', 'course_selected': '选课成功', 'course_dropped': '已退选课程',
             'announcement': '新公告', 'grade_published': '成绩发布',
+            'assignment_published': '新作业',
+            'assignment_submitted': '作业已提交',
+            'assignment_reviewed': '作业已批阅',
+            'assignment_returned': '作业已退回',
             'supplement_pending': '待审批补签',
             'supplement_approved': '补签已批准',
             'supplement_rejected': '补签已驳回',
@@ -482,14 +511,17 @@ class Notification(db.Model):
 
 class Attendance(db.Model):
     __tablename__ = 'attendances'
+    __table_args__ = (
+        db.UniqueConstraint('user_id', 'attendance_date', name='uq_attendance_user_date'),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     attendance_date = db.Column(db.Date, nullable=False)
-    clock_in = db.Column(db.DateTime)                                # 涓婄彮鎵撳崱鏃堕棿
-    clock_out = db.Column(db.DateTime)                               # 涓嬬彮鎵撳崱鏃堕棿
+    clock_in = db.Column(db.DateTime)                                # 上班打卡时间
+    clock_out = db.Column(db.DateTime)                               # 下班打卡时间
     status = db.Column(db.String(20), default='normal')              # normal/late/early/absent
-    remark = db.Column(db.String(200))                               # 澶囨敞锛堣繜鍒板師鍥犵瓑锛?
+    remark = db.Column(db.String(200))                               # 备注（迟到原因等）
     created_at = db.Column(db.DateTime, default=get_beijing_time)
     updated_at = db.Column(db.DateTime, default=get_beijing_time, onupdate=get_beijing_time)
 
@@ -612,10 +644,10 @@ class Grade(db.Model):
     student_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     course_id = db.Column(db.Integer, db.ForeignKey('courses.id'), nullable=False)
     teacher_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    score = db.Column(db.Float)                                     # 鍒嗘暟
+    score = db.Column(db.Float)                                     # 分数
     grade_type = db.Column(db.String(20), default='final')           # mid-term/final/supplement
-    comment = db.Column(db.Text)                                      # 璇勮
-    is_published = db.Column(db.Boolean, default=False)              # 鏄惁宸插彂甯?
+    comment = db.Column(db.Text)                                      # 评语
+    is_published = db.Column(db.Boolean, default=False)              # 是否已发布
     published_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=get_beijing_time)
     updated_at = db.Column(db.DateTime, default=get_beijing_time, onupdate=get_beijing_time)
@@ -660,6 +692,9 @@ class Grade(db.Model):
 
 class CourseSelection(db.Model):
     __tablename__ = 'course_selections'
+    __table_args__ = (
+        db.UniqueConstraint('student_id', 'course_id', name='uq_course_selection_student_course'),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     student_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
@@ -683,34 +718,339 @@ class CourseSelection(db.Model):
         }
 
 
+class CourseAttendanceActivity(db.Model):
+    __tablename__ = 'course_attendance_activities'
+
+    id = db.Column(db.Integer, primary_key=True)
+    course_id = db.Column(db.Integer, db.ForeignKey('courses.id'), nullable=False)
+    teacher_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    title = db.Column(db.String(120), nullable=False)
+    start_time = db.Column(db.DateTime, nullable=False)
+    end_time = db.Column(db.DateTime, nullable=False)
+    location_name = db.Column(db.String(120))
+    latitude = db.Column(db.Float)
+    longitude = db.Column(db.Float)
+    radius_meters = db.Column(db.Integer, default=200)
+    allow_late = db.Column(db.Boolean, default=True)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=get_beijing_time)
+    updated_at = db.Column(db.DateTime, default=get_beijing_time, onupdate=get_beijing_time)
+
+    course = db.relationship('Course', backref='attendance_activities')
+    teacher = db.relationship('User', backref='course_attendance_activities')
+    records = db.relationship('CourseAttendanceRecord', backref='activity', cascade='all, delete-orphan')
+
+    def get_status(self):
+        now = datetime.now()
+        if not self.is_active:
+            return 'closed'
+        if now < self.start_time:
+            return 'pending'
+        if now > self.end_time:
+            return 'finished'
+        return 'open'
+
+    def get_status_display(self):
+        return {
+            'pending': '未开始',
+            'open': '进行中',
+            'finished': '已结束',
+            'closed': '已关闭',
+        }.get(self.get_status(), self.get_status())
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'course_id': self.course_id,
+            'course_name': self.course.name if self.course else '',
+            'course_code': self.course.code if self.course else '',
+            'teacher_id': self.teacher_id,
+            'teacher_name': self.teacher.real_name if self.teacher else '',
+            'title': self.title,
+            'start_time': self.start_time.strftime('%Y-%m-%d %H:%M:%S') if self.start_time else '',
+            'end_time': self.end_time.strftime('%Y-%m-%d %H:%M:%S') if self.end_time else '',
+            'location_name': self.location_name or '',
+            'latitude': self.latitude,
+            'longitude': self.longitude,
+            'radius_meters': self.radius_meters,
+            'allow_late': self.allow_late,
+            'is_active': self.is_active,
+            'status': self.get_status(),
+            'status_display': self.get_status_display(),
+            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else '',
+        }
+
+
+class CourseAttendanceRecord(db.Model):
+    __tablename__ = 'course_attendance_records'
+    __table_args__ = (
+        db.UniqueConstraint('activity_id', 'student_id', name='uq_course_attendance_activity_student'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    activity_id = db.Column(db.Integer, db.ForeignKey('course_attendance_activities.id'), nullable=False)
+    student_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    sign_time = db.Column(db.DateTime)
+    status = db.Column(db.String(30), nullable=False, default='present')
+    latitude = db.Column(db.Float)
+    longitude = db.Column(db.Float)
+    accuracy = db.Column(db.Float)
+    distance_meters = db.Column(db.Float)
+    within_range = db.Column(db.Boolean, default=False)
+    remark = db.Column(db.Text)
+    reviewed_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    reviewed_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=get_beijing_time)
+    updated_at = db.Column(db.DateTime, default=get_beijing_time, onupdate=get_beijing_time)
+
+    student = db.relationship('User', foreign_keys=[student_id], backref='course_attendance_records')
+    reviewer = db.relationship('User', foreign_keys=[reviewed_by])
+
+    def get_status_display(self):
+        return {
+            'present': '已签到',
+            'late': '迟到',
+            'absent': '未签到',
+            'leave': '请假',
+            'location_abnormal': '位置异常',
+            'manual': '手动补签',
+        }.get(self.status, self.status)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'activity_id': self.activity_id,
+            'student_id': self.student_id,
+            'student_name': self.student.real_name if self.student else '',
+            'student_no': self.student.student_id if self.student else '',
+            'major': self.student.major if self.student else '',
+            'grade': self.student.grade if self.student else '',
+            'email': self.student.email if self.student else '',
+            'phone': self.student.phone if self.student else '',
+            'sign_time': self.sign_time.strftime('%Y-%m-%d %H:%M:%S') if self.sign_time else '',
+            'status': self.status,
+            'status_display': self.get_status_display(),
+            'latitude': self.latitude,
+            'longitude': self.longitude,
+            'accuracy': self.accuracy,
+            'distance_meters': self.distance_meters,
+            'within_range': self.within_range,
+            'remark': self.remark or '',
+            'reviewed_by': self.reviewed_by,
+            'reviewed_by_name': self.reviewer.real_name if self.reviewer else '',
+            'reviewed_at': self.reviewed_at.strftime('%Y-%m-%d %H:%M:%S') if self.reviewed_at else '',
+            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else '',
+        }
+
+
+class CourseAssignment(db.Model):
+    __tablename__ = 'course_assignments'
+
+    id = db.Column(db.Integer, primary_key=True)
+    course_id = db.Column(db.Integer, db.ForeignKey('courses.id'), nullable=False)
+    teacher_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    title = db.Column(db.String(120), nullable=False)
+    description = db.Column(db.Text)
+    due_time = db.Column(db.DateTime, nullable=False)
+    max_score = db.Column(db.Float, default=100)
+    allow_late = db.Column(db.Boolean, default=True)
+    publish_status = db.Column(db.String(20), default='published')
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=get_beijing_time)
+    updated_at = db.Column(db.DateTime, default=get_beijing_time, onupdate=get_beijing_time)
+
+    course = db.relationship('Course', backref='assignments')
+    teacher = db.relationship('User', backref='course_assignments')
+    submissions = db.relationship('CourseAssignmentSubmission', backref='assignment', cascade='all, delete-orphan')
+    attachments = db.relationship('CourseAssignmentAttachment', backref='assignment', cascade='all, delete-orphan')
+
+    def get_status(self):
+        if not self.is_active:
+            return 'closed'
+        if self.publish_status == 'draft':
+            return 'draft'
+        if datetime.now() > self.due_time:
+            return 'overdue'
+        return 'open'
+
+    def get_status_display(self):
+        return {
+            'open': '进行中',
+            'overdue': '已截止',
+            'closed': '已关闭',
+            'draft': '草稿',
+        }.get(self.get_status(), self.get_status())
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'course_id': self.course_id,
+            'course_name': self.course.name if self.course else '',
+            'course_code': self.course.code if self.course else '',
+            'teacher_id': self.teacher_id,
+            'teacher_name': self.teacher.real_name if self.teacher else '',
+            'title': self.title,
+            'description': self.description or '',
+            'due_time': self.due_time.strftime('%Y-%m-%d %H:%M:%S') if self.due_time else '',
+            'max_score': self.max_score,
+            'allow_late': self.allow_late,
+            'publish_status': self.publish_status,
+            'is_active': self.is_active,
+            'status': self.get_status(),
+            'status_display': self.get_status_display(),
+            'attachments': [item.to_dict() for item in self.attachments],
+            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else '',
+            'updated_at': self.updated_at.strftime('%Y-%m-%d %H:%M:%S') if self.updated_at else '',
+        }
+
+
+class CourseAssignmentSubmission(db.Model):
+    __tablename__ = 'course_assignment_submissions'
+    __table_args__ = (
+        db.UniqueConstraint('assignment_id', 'student_id', name='uq_course_assignment_student_submission'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    assignment_id = db.Column(db.Integer, db.ForeignKey('course_assignments.id'), nullable=False)
+    student_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    submitted_at = db.Column(db.DateTime, default=get_beijing_time)
+    status = db.Column(db.String(30), nullable=False, default='submitted')
+    score = db.Column(db.Float)
+    feedback = db.Column(db.Text)
+    reviewed_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    reviewed_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=get_beijing_time)
+    updated_at = db.Column(db.DateTime, default=get_beijing_time, onupdate=get_beijing_time)
+
+    student = db.relationship('User', foreign_keys=[student_id], backref='course_assignment_submissions')
+    reviewer = db.relationship('User', foreign_keys=[reviewed_by])
+    versions = db.relationship(
+        'CourseAssignmentSubmissionVersion',
+        backref='submission',
+        cascade='all, delete-orphan',
+        order_by='CourseAssignmentSubmissionVersion.version_no',
+    )
+    attachments = db.relationship('CourseAssignmentAttachment', backref='submission', cascade='all, delete-orphan')
+
+    def get_status_display(self):
+        return {
+            'submitted': '已提交',
+            'late': '迟交',
+            'resubmitted': '已重交',
+            'returned': '已退回',
+            'reviewed': '已批阅',
+            'missing': '未提交',
+        }.get(self.status, self.status)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'assignment_id': self.assignment_id,
+            'student_id': self.student_id,
+            'student_name': self.student.real_name if self.student else '',
+            'student_no': self.student.student_id if self.student else '',
+            'major': self.student.major if self.student else '',
+            'grade': self.student.grade if self.student else '',
+            'email': self.student.email if self.student else '',
+            'phone': self.student.phone if self.student else '',
+            'content': self.content or '',
+            'submitted_at': self.submitted_at.strftime('%Y-%m-%d %H:%M:%S') if self.submitted_at else '',
+            'status': self.status,
+            'status_display': self.get_status_display(),
+            'score': self.score,
+            'feedback': self.feedback or '',
+            'attachments': [item.to_dict() for item in self.attachments],
+            'version_count': len(self.versions),
+            'reviewed_by': self.reviewed_by,
+            'reviewed_by_name': self.reviewer.real_name if self.reviewer else '',
+            'reviewed_at': self.reviewed_at.strftime('%Y-%m-%d %H:%M:%S') if self.reviewed_at else '',
+            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else '',
+            'updated_at': self.updated_at.strftime('%Y-%m-%d %H:%M:%S') if self.updated_at else '',
+        }
+
+
+class CourseAssignmentSubmissionVersion(db.Model):
+    __tablename__ = 'course_assignment_submission_versions'
+
+    id = db.Column(db.Integer, primary_key=True)
+    submission_id = db.Column(db.Integer, db.ForeignKey('course_assignment_submissions.id'), nullable=False)
+    version_no = db.Column(db.Integer, nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    submitted_at = db.Column(db.DateTime, default=get_beijing_time)
+    status = db.Column(db.String(30), nullable=False, default='submitted')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'submission_id': self.submission_id,
+            'version_no': self.version_no,
+            'content': self.content,
+            'submitted_at': self.submitted_at.strftime('%Y-%m-%d %H:%M:%S') if self.submitted_at else '',
+            'status': self.status,
+        }
+
+
+class CourseAssignmentAttachment(db.Model):
+    __tablename__ = 'course_assignment_attachments'
+
+    id = db.Column(db.Integer, primary_key=True)
+    assignment_id = db.Column(db.Integer, db.ForeignKey('course_assignments.id'))
+    submission_id = db.Column(db.Integer, db.ForeignKey('course_assignment_submissions.id'))
+    uploaded_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    original_name = db.Column(db.String(255), nullable=False)
+    stored_name = db.Column(db.String(255), nullable=False)
+    storage_path = db.Column(db.String(500), nullable=False)
+    file_size = db.Column(db.Integer, default=0)
+    content_type = db.Column(db.String(120))
+    created_at = db.Column(db.DateTime, default=get_beijing_time)
+
+    uploader = db.relationship('User', foreign_keys=[uploaded_by])
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'assignment_id': self.assignment_id,
+            'submission_id': self.submission_id,
+            'uploaded_by': self.uploaded_by,
+            'uploader_name': self.uploader.real_name if self.uploader else '',
+            'original_name': self.original_name,
+            'stored_name': self.stored_name,
+            'file_size': self.file_size,
+            'content_type': self.content_type or '',
+            'download_url': f'/assignment/api/attachments/{self.id}/download',
+            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else '',
+        }
+
+
 class SystemSettings(db.Model):
-    """绯荤粺绾у埆鐨勫瑙傝缃紙浠呯郴缁熺鐞嗗憳鍙慨鏀癸級"""
+    """系统级别的外观设置（仅系统管理员可修改）"""
     __tablename__ = 'system_settings'
 
     id = db.Column(db.Integer, primary_key=True)
     key = db.Column(db.String(100), unique=True, nullable=False)
 
-    # 鑳屾櫙璁剧疆
+    # 背景设置
     background_type = db.Column(db.String(20), default='solid')      # solid/gradient/image
-    background_color = db.Column(db.String(20), default='#f0f2f5')     # 绾壊鑳屾櫙
-    background_gradient_start = db.Column(db.String(20), default='#667eea')  # 娓愬彉璧峰鑹?
-    background_gradient_end = db.Column(db.String(20), default='#764ba2')   # 娓愬彉缁撴潫鑹?
-    background_image = db.Column(db.String(500))                        # 鑳屾櫙鍥剧墖URL
-    background_image_opacity = db.Column(db.Float, default=0.3)        # 鑳屾櫙鍥剧墖閫忔槑搴?
+    background_color = db.Column(db.String(20), default='#f0f2f5')     # 纯色背景
+    background_gradient_start = db.Column(db.String(20), default='#667eea')  # 渐变起始色
+    background_gradient_end = db.Column(db.String(20), default='#764ba2')   # 渐变结束色
+    background_image = db.Column(db.String(500))                        # 背景图片URL
+    background_image_opacity = db.Column(db.Float, default=0.3)        # 背景图片透明度
 
-    # 涓婚鑹茶皟
-    primary_color = db.Column(db.String(20), default='#667eea')        # 涓昏壊璋?
-    accent_color = db.Column(db.String(20), default='#764ba2')          # 寮鸿皟鑹?
+    # 主题色调
+    primary_color = db.Column(db.String(20), default='#667eea')        # 主色调
+    accent_color = db.Column(db.String(20), default='#764ba2')          # 强调色
 
-    # 鑹茶皟璋冩暣
-    saturation = db.Column(db.Integer, default=100)                    # 楗卞拰搴?0-200
-    brightness = db.Column(db.Integer, default=100)                    # 浜害 0-200
-    hue_shift = db.Column(db.Integer, default=0)                        # 鑹茬浉鍋忕Щ -180 鍒?180
+    # 色调调整
+    saturation = db.Column(db.Integer, default=100)                    # 饱和度 0-200
+    brightness = db.Column(db.Integer, default=100)                    # 亮度 0-200
+    hue_shift = db.Column(db.Integer, default=0)                        # 色相偏移 -180 到 180
 
-    # 鍏朵粬
-    border_radius = db.Column(db.String(20), default='8px')            # 鍦嗚澶у皬
-    card_style = db.Column(db.String(20), default='rounded')            # 鍗＄墖鏍峰紡: rounded/sharp/circle
-    animation_enabled = db.Column(db.Boolean, default=True)             # 鏄惁鍚敤鍔ㄧ敾
+    # 其他
+    border_radius = db.Column(db.String(20), default='8px')            # 圆角大小
+    card_style = db.Column(db.String(20), default='rounded')            # 卡片样式: rounded/sharp/circle
+    animation_enabled = db.Column(db.Boolean, default=True)             # 是否启用动画
 
     updated_by = db.Column(db.Integer, db.ForeignKey('users.id'))
     updated_at = db.Column(db.DateTime, default=get_beijing_time, onupdate=get_beijing_time)

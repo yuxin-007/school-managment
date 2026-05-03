@@ -1,5 +1,5 @@
-﻿import React, { useEffect, useMemo, useState } from 'react'
-import { Avatar, Badge, Dropdown, Layout, Menu, Space, Typography, theme as antTheme } from 'antd'
+import React, { useEffect, useMemo, useState } from 'react'
+import { Avatar, Badge, Button, Dropdown, Layout, Menu, Typography, theme as antTheme } from 'antd'
 import {
   ApartmentOutlined,
   BarChartOutlined,
@@ -21,11 +21,11 @@ import {
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { logout } from '@/api/auth'
 import { getUnreadCount } from '@/api'
-import { brandPalette } from '@/lib/designSystem'
+import { useI18n } from '@/lib/i18n'
 import { useAuthStore } from '@/store/authStore'
 
 const { Content, Header, Sider } = Layout
-const { Paragraph, Text } = Typography
+const { Text } = Typography
 
 const AppLayout: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false)
@@ -33,6 +33,7 @@ const AppLayout: React.FC = () => {
   const navigate = useNavigate()
   const location = useLocation()
   const { user, logout: clearAuth } = useAuthStore()
+  const { isEnglish, roleLabel, t } = useI18n()
   const { token } = antTheme.useToken()
 
   useEffect(() => {
@@ -54,62 +55,68 @@ const AppLayout: React.FC = () => {
   const role = user?.role
   const userSecondaryLabel =
     role === 'super_admin'
-      ? '全局管理权限'
+      ? t('layout.globalAccess')
       : user?.department_name && user.department_name !== user.real_name
         ? user.department_name
-        : user?.role_display || '未配置主组织'
+        : t('common.notConfiguredPrimaryOrg')
 
   const menuItems = useMemo(() => {
     return [
-      { key: '/dashboard', icon: <DashboardOutlined />, label: '工作台' },
-      { key: '/announcements', icon: <BellOutlined />, label: '公告中心' },
-      { key: '/notifications', icon: <BellOutlined />, label: '消息通知' },
-      { key: '/leave', icon: <FileTextOutlined />, label: '请假管理' },
-      { key: '/attendance', icon: <ClockCircleOutlined />, label: '考勤打卡' },
+      { key: '/dashboard', icon: <DashboardOutlined />, label: t('layout.menu.dashboard') },
+      { key: '/announcements', icon: <BellOutlined />, label: t('layout.menu.announcements') },
+      { key: '/notifications', icon: <BellOutlined />, label: t('layout.menu.notifications') },
+      { key: '/leave', icon: <FileTextOutlined />, label: t('layout.menu.leave') },
+      { key: '/attendance', icon: <ClockCircleOutlined />, label: t('layout.menu.attendance') },
       ...(role === 'super_admin' || role === 'college_admin'
         ? [
-            { key: '/organization', icon: <ApartmentOutlined />, label: '组织中心' },
-            { key: '/announcement-manage', icon: <SolutionOutlined />, label: '公告治理' },
+            { key: '/organization', icon: <ApartmentOutlined />, label: t('layout.menu.organization') },
+            { key: '/announcement-manage', icon: <SolutionOutlined />, label: t('layout.menu.announcementManage') },
           ]
         : []),
       ...(role === 'super_admin'
         ? [
-            { key: '/users', icon: <TeamOutlined />, label: '用户治理' },
-            { key: '/logs', icon: <SettingOutlined />, label: '操作日志' },
+            { key: '/users', icon: <TeamOutlined />, label: t('layout.menu.users') },
+            { key: '/logs', icon: <SettingOutlined />, label: t('layout.menu.logs') },
           ]
         : []),
       ...(role === 'super_admin' || role === 'college_admin'
-        ? [{ key: '/attendance-manage', icon: <BarChartOutlined />, label: '考勤看板' }]
+        ? [{ key: '/attendance-manage', icon: <BarChartOutlined />, label: t('layout.menu.attendanceManage') }]
         : []),
       ...(role === 'super_admin' || role === 'college_admin' || role === 'staff'
         ? [
-            { key: '/courses', icon: <BookOutlined />, label: '课程管理' },
-            { key: '/grade-entry', icon: <TrophyOutlined />, label: '成绩录入' },
+            { key: '/course-workspace', icon: <BookOutlined />, label: t('layout.menu.courseWorkspace') },
+            { key: '/courses', icon: <BookOutlined />, label: t('layout.menu.courses') },
+            { key: '/course-attendance', icon: <ClockCircleOutlined />, label: t('layout.menu.courseAttendance') },
+            { key: '/course-assignments', icon: <FileTextOutlined />, label: t('layout.menu.courseAssignments') },
+            { key: '/grade-entry', icon: <TrophyOutlined />, label: t('layout.menu.gradeEntry') },
           ]
         : []),
       ...(role === 'student'
         ? [
-            { key: '/course-selection', icon: <BookOutlined />, label: '课程选择' },
-            { key: '/course-schedule', icon: <CalendarOutlined />, label: '课表查看' },
-            { key: '/my-grades', icon: <TrophyOutlined />, label: '我的成绩' },
+            { key: '/course-workspace', icon: <BookOutlined />, label: t('layout.menu.courseWorkspace') },
+            { key: '/course-selection', icon: <BookOutlined />, label: t('layout.menu.courseSelection') },
+            { key: '/course-schedule', icon: <CalendarOutlined />, label: t('layout.menu.courseSchedule') },
+            { key: '/course-attendance', icon: <ClockCircleOutlined />, label: t('layout.menu.courseAttendance') },
+            { key: '/course-assignments', icon: <FileTextOutlined />, label: t('layout.menu.courseAssignments') },
+            { key: '/my-grades', icon: <TrophyOutlined />, label: t('layout.menu.myGrades') },
           ]
         : []),
-      { key: '/settings', icon: <UserOutlined />, label: '个人设置' },
+      { key: '/settings', icon: <UserOutlined />, label: t('layout.menu.settings') },
     ]
-  }, [role])
+  }, [role, t])
 
   const userMenuItems = [
     {
       key: 'settings',
       icon: <SettingOutlined />,
-      label: '个人设置',
+      label: t('layout.action.settings'),
       onClick: () => navigate('/settings'),
     },
     { type: 'divider' as const },
     {
       key: 'logout',
       icon: <LogoutOutlined />,
-      label: '退出登录',
+      label: t('layout.action.logout'),
       danger: true,
       onClick: async () => {
         await logout().catch(() => {})
@@ -120,51 +127,28 @@ const AppLayout: React.FC = () => {
   ]
 
   return (
-    <Layout className="app-shell" style={{ minHeight: '100vh', background: token.colorBgLayout }}>
+    <Layout className="app-shell" style={{ minHeight: '100vh', background: '#F8F9FA' }}>
       <Sider
         className="app-sider"
         trigger={null}
         collapsible
         collapsed={collapsed}
-        width={248}
+        breakpoint="lg"
+        collapsedWidth={0}
+        onBreakpoint={(broken) => setCollapsed(broken)}
+        width={240}
         style={{
-          background: token.colorBgContainer,
-          borderRight: `1px solid ${token.colorBorderSecondary}`,
+          background: '#ffffff',
+          borderRight: '1px solid #E5E7EB',
         }}
       >
-        <div
-          style={{
-            minHeight: 92,
-            padding: collapsed ? '18px 12px' : '18px 20px',
-            borderBottom: `1px solid ${token.colorBorderSecondary}`,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-          }}
-        >
-          <div
-            style={{
-              width: 42,
-              height: 42,
-              borderRadius: 14,
-              background: `linear-gradient(135deg, ${brandPalette.primary} 0%, ${brandPalette.secondary} 100%)`,
-              color: '#fff',
-              display: 'grid',
-              placeItems: 'center',
-              fontWeight: 700,
-            }}
-          >
-            校
-          </div>
+        <div className="app-brand">
+          <div className="app-brand-mark">{'校'}</div>
           {!collapsed && (
-            <Space direction="vertical" size={0}>
-              <Text strong style={{ fontSize: 16 }}>
-                学校组织与人员平台
-              </Text>
-              <Paragraph type="secondary" style={{ marginBottom: 0, fontSize: 12 }}>
-                组织、人员与业务联动中枢
-              </Paragraph>
-            </Space>
+            <div className="app-brand-copy">
+              <h1 className="app-brand-title">{t('app.title')}</h1>
+              <span className="app-brand-subtitle">{isEnglish ? t('app.titleZh') : t('app.titleEn')}</span>
+            </div>
           )}
         </div>
 
@@ -173,63 +157,57 @@ const AppLayout: React.FC = () => {
           selectedKeys={[location.pathname]}
           items={menuItems}
           onClick={({ key }) => navigate(key)}
-          style={{ border: 'none', paddingTop: 12 }}
+          aria-label={t('layout.a11y.primaryNavigation')}
+          style={{ border: 'none', paddingTop: 8 }}
         />
       </Sider>
 
       <Layout>
-        <Header
-          className="app-topbar"
-          style={{
-            padding: '0 24px',
-            background: token.colorBgContainer,
-            borderBottom: `1px solid ${token.colorBorderSecondary}`,
-            position: 'sticky',
-            top: 0,
-            zIndex: 100,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
-          <Space size={14}>
-            {React.createElement(collapsed ? MenuUnfoldOutlined : MenuFoldOutlined, {
-              style: { fontSize: 18, cursor: 'pointer', color: token.colorText },
-              onClick: () => setCollapsed((current) => !current),
-            })}
-            <Space className="app-role-chip" size={8}>
-              <Text strong style={{ color: brandPalette.primary }}>
-                {user?.role_display || '未识别角色'}
-              </Text>
-              <Text type="secondary">当前组织：{user?.department_name || '未配置主组织'}</Text>
-            </Space>
-          </Space>
-
-          <div className="app-header-actions">
-            <Badge count={unreadCount} size="small">
-              <BellOutlined
-                className="app-notification-trigger"
-                style={{ fontSize: 18, cursor: 'pointer', color: token.colorText }}
-                onClick={() => navigate('/notifications')}
+        <Header className="app-topbar">
+          <div className="app-topbar-inner">
+            <div className="app-topbar-leading">
+              <Button
+                type="text"
+                className="app-toggle-button"
+                icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+                aria-label={collapsed ? t('layout.a11y.expandNavigation') : t('layout.a11y.collapseNavigation')}
+                aria-expanded={!collapsed}
+                onClick={() => setCollapsed((current) => !current)}
               />
-            </Badge>
-            <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
-              <div className="app-user-trigger" role="button" tabIndex={0}>
-                <Avatar style={{ backgroundColor: token.colorPrimary }} icon={<UserOutlined />} />
-                <div className="app-user-meta">
-                  <Text strong className="app-user-name">
-                    {user?.real_name || '未登录用户'}
-                  </Text>
-                  <Text type="secondary" className="app-user-subtitle">
-                    {userSecondaryLabel}
-                  </Text>
-                </div>
-              </div>
-            </Dropdown>
+            </div>
+
+            <div className="app-header-actions">
+              <Badge count={unreadCount} size="small" offset={[-2, 2]}>
+                <Button
+                  type="text"
+                  className="app-notification-trigger"
+                  icon={<BellOutlined style={{ fontSize: 16 }} />}
+                  aria-label={
+                    unreadCount > 0
+                      ? t('layout.a11y.openNotificationsWithCount', { count: unreadCount })
+                      : t('layout.a11y.openNotifications')
+                  }
+                  onClick={() => navigate('/notifications')}
+                />
+              </Badge>
+              <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
+                <button type="button" className="app-user-trigger" aria-label={t('layout.a11y.openUserMenu')} aria-haspopup="menu">
+                  <Avatar size={28} style={{ backgroundColor: '#111827', color: '#ffffff', fontSize: 12 }} icon={<UserOutlined />} />
+                  <div className="app-user-meta">
+                    <Text strong className="app-user-name">
+                      {user?.real_name || t('common.loggedOutUser')}
+                    </Text>
+                    <Text className="app-user-subtitle">
+                      {userSecondaryLabel}
+                    </Text>
+                  </div>
+                </button>
+              </Dropdown>
+            </div>
           </div>
         </Header>
 
-        <Content className="app-content" style={{ padding: 24 }}>
+        <Content className="app-content">
           <div className="app-content-wrap">
             <Outlet />
           </div>

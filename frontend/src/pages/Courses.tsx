@@ -1,4 +1,6 @@
-﻿import React, { useEffect, useMemo, useState } from 'react'
+import { getApiErrorMessage, hasFormErrorFields } from '@/lib/errors'
+import request from '@/lib/request'
+import React, { useEffect, useMemo, useState } from 'react'
 import {
   Badge,
   Button,
@@ -38,12 +40,11 @@ import {
   deleteCourse,
   dropCourse,
   getCourse,
-  getCourses,
-  getMySelections,
   getTeacherOptions,
   selectCourse,
   updateCourse,
 } from '@/api'
+import { PageShell } from '@/components/ui/PageScaffold'
 import { useAuthStore } from '@/store/authStore'
 
 const { Paragraph, Text, Title } = Typography
@@ -162,11 +163,11 @@ const CoursesPage: React.FC = () => {
   const loadCourses = async () => {
     setLoading(true)
     try {
-      const response = await getCourses()
+      const response = await request.get('/course/api/courses', { skipErrorMessage: true })
       setCourses(response.data.data || [])
       setScopeLabel(response.data.meta?.scope_label || '')
-    } catch (error: any) {
-      message.error(error?.response?.data?.message || '课程列表加载失败。')
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, '课程列表加载失败。'))
     } finally {
       setLoading(false)
     }
@@ -177,10 +178,10 @@ const CoursesPage: React.FC = () => {
       return
     }
     try {
-      const response = await getMySelections()
+      const response = await request.get('/course/api/courses/my-selections', { skipErrorMessage: true })
       setMySelections(response.data.data || [])
-    } catch (error: any) {
-      message.error(error?.response?.data?.message || '已选课程加载失败。')
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, '已选课程加载失败。'))
     }
   }
 
@@ -191,8 +192,8 @@ const CoursesPage: React.FC = () => {
     try {
       const response = await getTeacherOptions()
       setTeacherOptions(response.data.data || [])
-    } catch (error: any) {
-      message.error(error?.response?.data?.message || '教师候选列表加载失败。')
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, '教师候选列表加载失败。'))
     }
   }
 
@@ -200,6 +201,8 @@ const CoursesPage: React.FC = () => {
     loadCourses()
     loadSelections()
     loadTeacherOptions()
+    // Initial course workspace load; mutations refresh the relevant lists explicitly.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const semesterOptions = useMemo(() => {
@@ -283,8 +286,8 @@ const CoursesPage: React.FC = () => {
     try {
       const response = await getCourse(courseId)
       setDetailCourse(response.data.data || null)
-    } catch (error: any) {
-      message.error(error?.response?.data?.message || '课程详情加载失败。')
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, '课程详情加载失败。'))
       setDetailOpen(false)
     } finally {
       setDetailLoading(false)
@@ -312,9 +315,9 @@ const CoursesPage: React.FC = () => {
       }
       setModalOpen(false)
       await Promise.all([loadCourses(), loadSelections()])
-    } catch (error: any) {
-      if (!error?.errorFields) {
-        message.error(error?.response?.data?.message || '课程保存失败。')
+    } catch (error: unknown) {
+      if (!hasFormErrorFields(error)) {
+        message.error(getApiErrorMessage(error, '课程保存失败。'))
       }
     } finally {
       setSubmitting(false)
@@ -327,8 +330,8 @@ const CoursesPage: React.FC = () => {
       const response = await deleteCourse(courseId)
       message.success(response.data.message || '课程已删除。')
       await loadCourses()
-    } catch (error: any) {
-      message.error(error?.response?.data?.message || '课程删除失败。')
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, '课程删除失败。'))
     } finally {
       setActionCourseId(null)
     }
@@ -340,8 +343,8 @@ const CoursesPage: React.FC = () => {
       const response = await selectCourse(courseId)
       message.success(response.data.message || '选课成功。')
       await Promise.all([loadCourses(), loadSelections()])
-    } catch (error: any) {
-      message.error(error?.response?.data?.message || '选课失败。')
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, '选课失败。'))
     } finally {
       setActionCourseId(null)
     }
@@ -353,8 +356,8 @@ const CoursesPage: React.FC = () => {
       const response = await dropCourse(courseId)
       message.success(response.data.message || '退选成功。')
       await Promise.all([loadCourses(), loadSelections()])
-    } catch (error: any) {
-      message.error(error?.response?.data?.message || '退选失败。')
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, '退选失败。'))
     } finally {
       setActionCourseId(null)
     }
@@ -366,8 +369,8 @@ const CoursesPage: React.FC = () => {
       const response = await updateCourse(course.id, { is_active: nextValue })
       message.success(response.data.message || '课程状态已更新。')
       await loadCourses()
-    } catch (error: any) {
-      message.error(error?.response?.data?.message || '课程状态更新失败。')
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, '课程状态更新失败。'))
     } finally {
       setActionCourseId(null)
     }
@@ -465,7 +468,7 @@ const CoursesPage: React.FC = () => {
   ]
 
   return (
-    <Space direction="vertical" size={16} style={{ width: '100%' }}>
+    <PageShell>
       <Card bordered={false}>
         <Space direction="vertical" size={8} style={{ width: '100%' }}>
           <Text type="secondary">课程管理</Text>
@@ -503,8 +506,8 @@ const CoursesPage: React.FC = () => {
 
       <Card bordered={false}>
         <Space direction="vertical" size={16} style={{ width: '100%' }}>
-          <Space wrap style={{ justifyContent: 'space-between', width: '100%' }}>
-            <Space wrap>
+          <Space wrap className="table-toolbar" style={{ justifyContent: 'space-between', width: '100%' }}>
+            <Space wrap className="toolbar-group toolbar-controls">
               <Input.Search
                 allowClear
                 placeholder="搜索课程名称、代码、教师或地点"
@@ -531,9 +534,11 @@ const CoursesPage: React.FC = () => {
               />
             </Space>
             {canManage && (
+              <Space wrap className="toolbar-group toolbar-actions">
               <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal}>
                 新建课程
               </Button>
+              </Space>
             )}
           </Space>
 
@@ -548,6 +553,7 @@ const CoursesPage: React.FC = () => {
             dataSource={filteredCourses}
             locale={{ emptyText: <Empty description="当前没有可显示的课程。" /> }}
             pagination={{ pageSize: 8, showSizeChanger: false }}
+            scroll={{ x: 'max-content' }}
           />
         </Space>
       </Card>
@@ -705,7 +711,7 @@ const CoursesPage: React.FC = () => {
           </Space>
         )}
       </Drawer>
-    </Space>
+    </PageShell>
   )
 }
 

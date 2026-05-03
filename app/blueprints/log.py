@@ -1,20 +1,11 @@
-﻿from flask import Blueprint, jsonify, request, redirect
+from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
 from app.models import db, OperationLog
 from app.utils.permissions import super_admin_required
+from app.utils.response import paginated_response
 from datetime import datetime
 
 bp = Blueprint('log', __name__, url_prefix='/log')
-
-FRONTEND_URL = ''
-
-
-@bp.route('/')
-@login_required
-@super_admin_required
-def index():
-    return redirect(FRONTEND_URL + '/logs')
-
 
 @bp.route('/api/logs')
 @login_required
@@ -48,18 +39,7 @@ def get_logs():
 
     pagination = query.order_by(OperationLog.created_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
 
-    return jsonify({
-        'success': True,
-        'data': [log.to_dict() for log in pagination.items],
-        'pagination': {
-            'page': page,
-            'per_page': per_page,
-            'total': pagination.total,
-            'pages': pagination.pages,
-            'has_next': pagination.has_next,
-            'has_prev': pagination.has_prev
-        }
-    })
+    return paginated_response(pagination, lambda log: log.to_dict())
 
 
 @bp.route('/api/logs/stats')
@@ -93,8 +73,17 @@ def get_stats():
     return jsonify({'success': True, 'data': stats})
 
 
-def log_operation(user_id, action, target_type=None, target_id=None, target_name=None,
-                   detail=None, ip_address=None, user_agent=None):
+def log_operation(
+    user_id,
+    action,
+    target_type=None,
+    target_id=None,
+    target_name=None,
+    detail=None,
+    ip_address=None,
+    user_agent=None,
+    commit=False,
+):
     """记录操作日志（供其他蓝图调用）"""
     log = OperationLog(
         user_id=user_id,
@@ -107,5 +96,6 @@ def log_operation(user_id, action, target_type=None, target_id=None, target_name
         user_agent=user_agent
     )
     db.session.add(log)
-    db.session.commit()
+    if commit:
+        db.session.commit()
     return log

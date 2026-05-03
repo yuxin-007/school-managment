@@ -1,4 +1,5 @@
-﻿import React, { useEffect, useMemo, useState } from 'react'
+import { getApiErrorMessage, hasFormErrorFields } from '@/lib/errors'
+import React, { useEffect, useMemo, useState } from 'react'
 import {
   Alert,
   Button,
@@ -15,7 +16,6 @@ import {
   Row,
   Select,
   Space,
-  Statistic,
   Table,
   Tag,
   Tooltip,
@@ -35,6 +35,7 @@ import {
   UserOutlined,
 } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
+import { MetricCard, MetricGrid, PageShell } from '@/components/ui/PageScaffold'
 import {
   batchUpdatePrimaryOrganization,
   createUser,
@@ -49,7 +50,7 @@ import {
   updateUser,
 } from '@/api'
 
-const { Paragraph, Text, Title } = Typography
+const { Text, Title } = Typography
 
 interface UserRecord {
   id: number
@@ -98,6 +99,16 @@ interface UserDetailRecord extends UserRecord {
   organization_relations?: UserOrganizationRelation[]
 }
 
+interface UserStatistics {
+  total_users: number
+  role_distribution?: {
+    college_admin?: number
+    staff?: number
+    student?: number
+  }
+  users_without_primary?: number
+}
+
 const roleMap: Record<string, { text: string; color: string }> = {
   college_admin: { text: '学院管理员', color: 'orange' },
   staff: { text: '教职工', color: 'blue' },
@@ -107,7 +118,7 @@ const roleMap: Record<string, { text: string; color: string }> = {
 const UsersPage: React.FC = () => {
   const navigate = useNavigate()
   const [users, setUsers] = useState<UserRecord[]>([])
-  const [stats, setStats] = useState<any>(null)
+  const [stats, setStats] = useState<UserStatistics | null>(null)
   const [loading, setLoading] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<UserRecord | null>(null)
@@ -124,6 +135,8 @@ const UsersPage: React.FC = () => {
   const [batchForm] = Form.useForm()
   const [pagination, setPagination] = useState({ page: 1, per_page: 20, total: 0 })
   const [keyword, setKeyword] = useState('')
+  const [phoneFilter, setPhoneFilter] = useState('')
+  const [emailFilter, setEmailFilter] = useState('')
   const [roleFilter, setRoleFilter] = useState<string | undefined>()
   const [primaryFilter, setPrimaryFilter] = useState<string | undefined>()
 
@@ -151,12 +164,16 @@ const UsersPage: React.FC = () => {
     nextKeyword = keyword,
     nextRole = roleFilter,
     nextPrimary = primaryFilter,
+    nextPhone = phoneFilter,
+    nextEmail = emailFilter,
   ) => {
     setLoading(true)
     try {
-      if (nextKeyword || nextRole || nextPrimary) {
+      if (nextKeyword || nextPhone || nextEmail || nextRole || nextPrimary) {
         const res = await searchUsers({
           keyword: nextKeyword,
+          phone: nextPhone,
+          email: nextEmail,
           role: nextRole || '',
           has_primary: nextPrimary,
         })
@@ -169,11 +186,24 @@ const UsersPage: React.FC = () => {
       const res = await getUsers({ page, per_page: pagination.per_page, has_primary: nextPrimary })
       setUsers(res.data.data || [])
       setPagination((prev) => ({ ...prev, ...res.data.pagination, page }))
-    } catch (error) {
+    } catch {
       message.error('用户数据加载失败')
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleFilterSearch = () => {
+    loadUsers(1, keyword, roleFilter, primaryFilter, phoneFilter, emailFilter)
+  }
+
+  const handleFilterReset = () => {
+    setKeyword('')
+    setPhoneFilter('')
+    setEmailFilter('')
+    setRoleFilter(undefined)
+    setPrimaryFilter(undefined)
+    loadUsers(1, '', undefined, undefined, '', '')
   }
 
   const loadStats = async () => {
@@ -182,7 +212,7 @@ const UsersPage: React.FC = () => {
       if (res.data.success) {
         setStats(res.data.data)
       }
-    } catch (error) {
+    } catch {
       message.error('用户统计加载失败')
     }
   }
@@ -203,7 +233,7 @@ const UsersPage: React.FC = () => {
       if (currentNodeId && !options.some((item: OrganizationOption) => item.id === currentNodeId)) {
         form.setFieldValue('primary_node_id', undefined)
       }
-    } catch (error) {
+    } catch {
       message.error('组织选项加载失败')
     } finally {
       setOrgLoading(false)
@@ -213,12 +243,16 @@ const UsersPage: React.FC = () => {
   useEffect(() => {
     loadUsers()
     loadStats()
+    // Initial user workspace load; filters and mutations refresh explicitly.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
     if (modalOpen) {
       loadOrganizationOptions(currentRole)
     }
+    // Modal options depend on the visible form role; loadOrganizationOptions also reads form state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentRole, modalOpen])
 
   const openCreate = () => {
@@ -257,7 +291,7 @@ const UsersPage: React.FC = () => {
     try {
       const res = await getUser(record.id)
       setDetailUser(res.data.data)
-    } catch (error) {
+    } catch {
       message.error('用户详情加载失败')
       setDetailOpen(false)
     } finally {
@@ -282,11 +316,11 @@ const UsersPage: React.FC = () => {
       }
       setModalOpen(false)
       await Promise.all([loadUsers(pagination.page), loadStats()])
-    } catch (error: any) {
-      if (error?.errorFields) {
+    } catch (error: unknown) {
+      if (hasFormErrorFields(error)) {
         return
       }
-      message.error(error.response?.data?.message || '保存失败')
+      message.error(getApiErrorMessage(error, '保存失败'))
     }
   }
 
@@ -295,8 +329,8 @@ const UsersPage: React.FC = () => {
       await deleteUser(id)
       message.success('用户删除成功')
       await Promise.all([loadUsers(pagination.page), loadStats()])
-    } catch (error: any) {
-      message.error(error.response?.data?.message || '删除失败')
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, '删除失败'))
     }
   }
 
@@ -312,8 +346,8 @@ const UsersPage: React.FC = () => {
         })
       }
       await Promise.all([loadUsers(pagination.page), loadStats()])
-    } catch (error: any) {
-      message.error(error.response?.data?.message || '状态更新失败')
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, '状态更新失败'))
     } finally {
       setStatusUpdatingId(null)
     }
@@ -331,11 +365,11 @@ const UsersPage: React.FC = () => {
       setBatchModalOpen(false)
       setSelectedRowKeys([])
       await Promise.all([loadUsers(pagination.page), loadStats()])
-    } catch (error: any) {
-      if (error?.errorFields) {
+    } catch (error: unknown) {
+      if (hasFormErrorFields(error)) {
         return
       }
-      message.error(error.response?.data?.message || '批量配置失败')
+      message.error(getApiErrorMessage(error, '批量配置失败'))
     } finally {
       setBatchSaving(false)
     }
@@ -343,14 +377,14 @@ const UsersPage: React.FC = () => {
 
   const handleExport = async () => {
     try {
-      const res = await exportUsers({ keyword, role: roleFilter, has_primary: primaryFilter })
+      const res = await exportUsers({ keyword, phone: phoneFilter, email: emailFilter, role: roleFilter, has_primary: primaryFilter })
       const url = URL.createObjectURL(new Blob([res.data]))
       const link = document.createElement('a')
       link.href = url
       link.download = `用户数据_${new Date().toLocaleDateString()}.xlsx`
       link.click()
       URL.revokeObjectURL(url)
-    } catch (error) {
+    } catch {
       message.error('导出失败')
     }
   }
@@ -477,41 +511,48 @@ const UsersPage: React.FC = () => {
   }
 
   return (
-    <Space direction="vertical" size={20} style={{ width: '100%' }}>
-      <Card bordered={false} style={{ borderRadius: 24 }}>
-        <Space direction="vertical" size={10} style={{ width: '100%' }}>
-          <Text type="secondary">用户治理</Text>
-          <Title level={3} style={{ margin: 0 }}>
-            维护账号信息、角色身份和主组织归属
-          </Title>
-          <Paragraph type="secondary" style={{ marginBottom: 0, maxWidth: 860 }}>
-            用户管理页直接联动组织树，创建或编辑用户时可以同步设置主组织归属。
-          </Paragraph>
-        </Space>
-      </Card>
+    <PageShell>
+      <section className="page-hero">
+        <div className="page-eyebrow">Campus Axis Users</div>
+        <h2 className="page-title">用户治理</h2>
+        <p className="page-description">
+          这里统一维护系统账号、角色身份以及主组织归属。用户页与组织树直接联动，适合做批量归档、权限整理和人员信息校正。
+        </p>
+      </section>
 
-      <Row gutter={[16, 16]}>
+      <MetricGrid>
         {statItems.map((item) => (
-          <Col key={item.title} xs={12} lg={4}>
-            <Card bordered={false} style={{ borderRadius: 18 }}>
-              <Statistic title={item.title} value={item.value} valueStyle={{ color: item.color }} prefix={<UserOutlined />} />
-            </Card>
-          </Col>
+          <MetricCard key={item.title} label={item.title} value={item.value} accent={item.color} icon={<UserOutlined />} />
         ))}
-      </Row>
+      </MetricGrid>
 
       <Card bordered={false} style={{ borderRadius: 24 }}>
         <Space direction="vertical" size={16} style={{ width: '100%' }}>
-          <Space wrap style={{ justifyContent: 'space-between', width: '100%' }}>
-            <Space wrap>
-              <Input.Search
-                placeholder="搜索用户名、姓名、工号或学号"
+          <Space wrap className="table-toolbar" style={{ justifyContent: 'space-between', width: '100%' }}>
+            <Space wrap className="toolbar-group toolbar-controls">
+              <Input
+                placeholder="用户名 / 姓名 / 工号 / 学号"
                 allowClear
-                style={{ width: 260 }}
-                onSearch={(value) => {
-                  setKeyword(value)
-                  loadUsers(1, value, roleFilter, primaryFilter)
-                }}
+                style={{ width: 240 }}
+                value={keyword}
+                onChange={(event) => setKeyword(event.target.value)}
+                onPressEnter={handleFilterSearch}
+              />
+              <Input
+                placeholder="手机号"
+                allowClear
+                style={{ width: 160 }}
+                value={phoneFilter}
+                onChange={(event) => setPhoneFilter(event.target.value)}
+                onPressEnter={handleFilterSearch}
+              />
+              <Input
+                placeholder="邮箱"
+                allowClear
+                style={{ width: 220 }}
+                value={emailFilter}
+                onChange={(event) => setEmailFilter(event.target.value)}
+                onPressEnter={handleFilterSearch}
               />
               <Select
                 placeholder="筛选角色"
@@ -521,7 +562,7 @@ const UsersPage: React.FC = () => {
                 value={roleFilter}
                 onChange={(value) => {
                   setRoleFilter(value)
-                  loadUsers(1, keyword, value, primaryFilter)
+                  loadUsers(1, keyword, value, primaryFilter, phoneFilter, emailFilter)
                 }}
               />
               <Select
@@ -532,12 +573,16 @@ const UsersPage: React.FC = () => {
                 value={primaryFilter}
                 onChange={(value) => {
                   setPrimaryFilter(value)
-                  loadUsers(1, keyword, roleFilter, value)
+                  loadUsers(1, keyword, roleFilter, value, phoneFilter, emailFilter)
                 }}
               />
+              <Button type="primary" onClick={handleFilterSearch}>
+                查询
+              </Button>
+              <Button onClick={handleFilterReset}>重置</Button>
             </Space>
 
-            <Space wrap>
+            <Space wrap className="toolbar-group toolbar-actions">
               <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
                 新建用户
               </Button>
@@ -608,7 +653,7 @@ const UsersPage: React.FC = () => {
               showTotal: (total) => `共 ${total} 条记录`,
               onChange: (page) => loadUsers(page),
             }}
-            scroll={{ x: 1100 }}
+            scroll={{ x: 'max-content' }}
           />
         </Space>
       </Card>
@@ -908,7 +953,7 @@ const UsersPage: React.FC = () => {
           <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无可展示的用户详情" />
         )}
       </Drawer>
-    </Space>
+    </PageShell>
   )
 }
 

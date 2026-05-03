@@ -1,13 +1,13 @@
-﻿import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   Card, Table, Select, DatePicker, Tag, message, Typography, Row, Col,
   Statistic, Space, Button, Input, Drawer
 } from 'antd'
 import {
-  FileTextOutlined, SearchOutlined, UserOutlined, GlobalOutlined
+  FileTextOutlined, SearchOutlined, GlobalOutlined
 } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
-import dayjs from 'dayjs'
+import dayjs, { type Dayjs } from 'dayjs'
 import { useAuthStore } from '@/store/authStore'
 import { getLogs, getLogStats } from '@/api'
 
@@ -27,6 +27,13 @@ interface LogItem {
   ip_address: string | null
   user_agent: string | null
   created_at: string
+}
+
+interface LogFilters {
+  action: string
+  keyword: string
+  start_date: string
+  end_date: string
 }
 
 const actionOptions = [
@@ -67,7 +74,7 @@ const LogsPage: React.FC = () => {
     by_action: {} as Record<string, { count: number; display: string }>
   })
   const [pagination, setPagination] = useState({ current: 1, pageSize: 50, total: 0 })
-  const [filters, setFilters] = useState({
+  const [filters, setFilters] = useState<LogFilters>({
     action: '',
     keyword: '',
     start_date: '',
@@ -81,7 +88,11 @@ const LogsPage: React.FC = () => {
 
     setLoading(true)
     try {
-      const params: any = { page, per_page: pagination.pageSize, ...filterParams }
+      const params: Record<string, string | number | undefined> = {
+        page,
+        per_page: pagination.pageSize,
+        ...filterParams,
+      }
       if (params.start_date) {
         params.start_date = dayjs(params.start_date).format('YYYY-MM-DD')
       }
@@ -98,7 +109,7 @@ const LogsPage: React.FC = () => {
           total: res.data.pagination?.total || 0
         }))
       }
-    } catch (error) {
+    } catch {
       message.error('加载日志失败')
     } finally {
       setLoading(false)
@@ -111,7 +122,7 @@ const LogsPage: React.FC = () => {
       if (res.data.success) {
         setStats(res.data.data)
       }
-    } catch (error) {
+    } catch {
       console.error('加载统计失败')
     }
   }
@@ -121,6 +132,8 @@ const LogsPage: React.FC = () => {
       loadLogs()
       loadStats()
     }
+    // Initial log dashboard load; filters and pagination refresh through explicit handlers.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin])
 
   const handleSearch = () => {
@@ -136,7 +149,7 @@ const LogsPage: React.FC = () => {
     loadLogs(page, filters)
   }
 
-  const handleDateChange = (dates: any, dateStrings: [string, string]) => {
+  const handleDateChange = (_dates: null | [Dayjs | null, Dayjs | null], dateStrings: [string, string]) => {
     setFilters(prev => ({
       ...prev,
       start_date: dateStrings[0],

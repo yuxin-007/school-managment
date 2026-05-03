@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from flask import Blueprint, jsonify, redirect, request
+from flask import Blueprint, jsonify, request
 from flask_login import current_user, login_required
 
 from app.extensions import db
@@ -10,9 +10,6 @@ from app.utils.org_permissions import ROLE_COLLEGE_ADMIN, ROLE_SUPER_ADMIN
 from app.utils.permissions import college_admin_or_super_admin_required
 
 bp = Blueprint("announcement", __name__, url_prefix="/announcement")
-
-FRONTEND_URL = ""
-
 
 def get_manageable_announcement_query():
     query = Announcement.query
@@ -37,19 +34,6 @@ def parse_announcement_dates(data):
     if start_date and end_date and start_date > end_date:
         raise ValueError("失效日期不能早于生效日期。")
     return start_date, end_date
-
-
-@bp.route("/")
-@login_required
-def index():
-    return redirect(FRONTEND_URL + "/announcements")
-
-
-@bp.route("/manage")
-@login_required
-@college_admin_or_super_admin_required
-def manage():
-    return redirect(FRONTEND_URL + "/announcement-manage")
 
 
 @bp.route("/api/announcements")
@@ -121,7 +105,7 @@ def get_all_announcements():
 @bp.route("/api/announcements/<int:ann_id>")
 @login_required
 def get_announcement(ann_id):
-    announcement = Announcement.query.get_or_404(ann_id)
+    announcement = db.get_or_404(Announcement, ann_id)
     can_manage = get_manageable_announcement_query().filter(Announcement.id == ann_id).first() is not None
 
     if not is_announcement_publicly_visible(announcement) and not can_manage:
@@ -173,6 +157,7 @@ def create_announcement():
         target_name=announcement.title,
         ip_address=request.remote_addr,
         user_agent=request.headers.get("User-Agent"),
+        commit=True,
     )
 
     return jsonify({"success": True, "data": announcement.to_dict(), "message": "公告发布成功。"})
@@ -224,6 +209,7 @@ def update_announcement(ann_id):
         target_name=announcement.title,
         ip_address=request.remote_addr,
         user_agent=request.headers.get("User-Agent"),
+        commit=True,
     )
 
     return jsonify({"success": True, "data": announcement.to_dict(), "message": "公告更新成功。"})
@@ -248,6 +234,7 @@ def delete_announcement(ann_id):
         target_name=title,
         ip_address=request.remote_addr,
         user_agent=request.headers.get("User-Agent"),
+        commit=True,
     )
 
     return jsonify({"success": True, "message": "公告已删除。"})

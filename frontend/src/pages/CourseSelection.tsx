@@ -1,4 +1,6 @@
-﻿import React, { useEffect, useMemo, useState } from 'react'
+import { getApiErrorMessage } from '@/lib/errors'
+import request from '@/lib/request'
+import React, { useEffect, useMemo, useState } from 'react'
 import {
   Button,
   Card,
@@ -14,7 +16,8 @@ import {
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { BookOutlined, CheckCircleOutlined, ClockCircleOutlined } from '@ant-design/icons'
-import { dropCourse, getCourses, getMySelections, selectCourse } from '@/api'
+import { dropCourse, selectCourse } from '@/api'
+import type { CourseItem, CourseSelectionRecord } from '@/features/courses/types'
 
 const { Paragraph, Text, Title } = Typography
 
@@ -23,25 +26,6 @@ interface ScheduleItem {
   start_time: string
   end_time: string
   day_display?: string
-}
-
-interface CourseItem {
-  id: number
-  name: string
-  code: string
-  teacher_name?: string
-  semester: string
-  location?: string
-  max_students: number
-  current_students: number
-  is_active: boolean
-  schedules?: ScheduleItem[]
-}
-
-interface CourseSelectionRecord {
-  id: number
-  course_id?: number
-  course?: CourseItem
 }
 
 const CourseSelectionPage: React.FC = () => {
@@ -60,11 +44,14 @@ const CourseSelectionPage: React.FC = () => {
   const loadData = async () => {
     setLoading(true)
     try {
-      const [coursesResponse, selectedResponse] = await Promise.all([getCourses(), getMySelections()])
+      const [coursesResponse, selectedResponse] = await Promise.all([
+        request.get('/course/api/courses', { skipErrorMessage: true }),
+        request.get('/course/api/courses/my-selections', { skipErrorMessage: true }),
+      ])
       setCourses(coursesResponse.data.data || [])
       setSelected(selectedResponse.data.data || [])
-    } catch (error: any) {
-      message.error(error?.response?.data?.message || '选课数据加载失败。')
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, '选课数据加载失败。'))
     } finally {
       setLoading(false)
     }
@@ -112,8 +99,8 @@ const CourseSelectionPage: React.FC = () => {
       const response = await selectCourse(courseId)
       message.success(response.data.message || '选课成功。')
       await loadData()
-    } catch (error: any) {
-      message.error(error?.response?.data?.message || '选课失败。')
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, '选课失败。'))
     } finally {
       setActionId(null)
     }
@@ -125,8 +112,8 @@ const CourseSelectionPage: React.FC = () => {
       const response = await dropCourse(courseId)
       message.success(response.data.message || '退选成功。')
       await loadData()
-    } catch (error: any) {
-      message.error(error?.response?.data?.message || '退选失败。')
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, '退选失败。'))
     } finally {
       setActionId(null)
     }

@@ -1,4 +1,5 @@
-﻿import React, { useEffect, useMemo, useState } from 'react'
+import { getApiErrorMessage, hasFormErrorFields } from '@/lib/errors'
+import React, { useEffect, useMemo, useState } from 'react'
 import {
   Alert,
   Button,
@@ -22,7 +23,6 @@ import {
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import {
-  CalendarOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
   FileSyncOutlined,
@@ -46,7 +46,7 @@ import { useAuthStore } from '@/store/authStore'
 
 const { RangePicker } = DatePicker
 const { Search, TextArea } = Input
-const { Paragraph, Text, Title } = Typography
+const { Paragraph, Text } = Typography
 
 interface LeaveTypeOption {
   value: string
@@ -170,8 +170,8 @@ const LeavePage: React.FC = () => {
       setLeaveTypes(responses[0].data.data || [])
       setMyLeaves(responses[1].data.data || [])
       setPendingLeaves(isManager ? responses[2].data.data || [] : [])
-    } catch (error: any) {
-      message.error(error?.response?.data?.message || '请假数据加载失败。')
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, '请假数据加载失败。'))
     } finally {
       setLoadingMy(false)
       setLoadingPending(false)
@@ -180,6 +180,8 @@ const LeavePage: React.FC = () => {
 
   useEffect(() => {
     loadData()
+    // Reload when manager role changes; form actions call loadData directly after mutation.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isManager])
 
   const filteredPendingLeaves = useMemo(() => {
@@ -211,8 +213,8 @@ const LeavePage: React.FC = () => {
     try {
       const response = await getLeaveDetail(record.id)
       setDetailRecord(response.data.data || null)
-    } catch (error: any) {
-      message.error(error?.response?.data?.message || '请假详情加载失败。')
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, '请假详情加载失败。'))
       setDetailOpen(false)
     } finally {
       setDetailLoading(false)
@@ -235,9 +237,9 @@ const LeavePage: React.FC = () => {
       setCreateOpen(false)
       createForm.resetFields()
       await loadData()
-    } catch (error: any) {
-      if (!error?.errorFields) {
-        message.error(error?.response?.data?.message || '请假申请提交失败。')
+    } catch (error: unknown) {
+      if (!hasFormErrorFields(error)) {
+        message.error(getApiErrorMessage(error, '请假申请提交失败。'))
       }
     } finally {
       setSubmitting(false)
@@ -250,8 +252,8 @@ const LeavePage: React.FC = () => {
       const response = await approveLeave(record.id, {})
       message.success(response.data.message || '请假申请已批准。')
       await loadData()
-    } catch (error: any) {
-      message.error(error?.response?.data?.message || '审批失败。')
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, '审批失败。'))
     } finally {
       setActingId(null)
     }
@@ -268,8 +270,8 @@ const LeavePage: React.FC = () => {
       setRejectTarget(null)
       rejectForm.resetFields()
       await loadData()
-    } catch (error: any) {
-      message.error(error?.response?.data?.message || '驳回失败。')
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, '驳回失败。'))
     } finally {
       setSubmitting(false)
     }
@@ -281,8 +283,8 @@ const LeavePage: React.FC = () => {
       const response = await cancelLeave(record.id)
       message.success(response.data.message || '请假申请已取消。')
       await loadData()
-    } catch (error: any) {
-      message.error(error?.response?.data?.message || '取消失败。')
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, '取消失败。'))
     } finally {
       setActingId(null)
     }
@@ -295,8 +297,8 @@ const LeavePage: React.FC = () => {
     try {
       const response = await getLeaveTransferOptions(record.id)
       setTransferOptions(response.data.data || null)
-    } catch (error: any) {
-      message.error(error?.response?.data?.message || '转交候选人加载失败。')
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, '转交候选人加载失败。'))
       setTransferOpen(false)
       setTransferTarget(null)
     }
@@ -316,8 +318,8 @@ const LeavePage: React.FC = () => {
       setTransferTarget(null)
       setTransferOptions(null)
       await loadData()
-    } catch (error: any) {
-      message.error(error?.response?.data?.message || '转交失败。')
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, '转交失败。'))
     } finally {
       setTransferSubmitting(false)
     }
@@ -386,16 +388,14 @@ const LeavePage: React.FC = () => {
   ]
 
   return (
-    <Space direction="vertical" size={16} style={{ width: '100%' }}>
-      <Card bordered={false}>
-        <Space direction="vertical" size={8} style={{ width: '100%' }}>
-          <Text type="secondary">请假管理</Text>
-          <Title level={2} style={{ margin: 0 }}>处理请假申请和审批流转</Title>
-          <Paragraph type="secondary" style={{ marginBottom: 0 }}>
-            请假提交后会根据组织归属自动匹配审批人，系统管理员也可按需转交审批。
-          </Paragraph>
-        </Space>
-      </Card>
+    <div className="page-shell">
+      <section className="page-hero">
+        <div className="page-eyebrow">Campus Axis Leave</div>
+        <h2 className="page-title">请假管理</h2>
+        <p className="page-description">
+          请假申请会沿组织归属自动流转到对应审批人。这里既能提交请假，也能处理审批、查看转交记录和跟踪完整审批链路。
+        </p>
+      </section>
 
       <Space size={16} wrap style={{ width: '100%' }}>
         <Card bordered={false} style={{ minWidth: 220 }}><Statistic title="我的申请总数" value={stats.myTotal} prefix={<FileTextOutlined />} /></Card>
@@ -592,7 +592,7 @@ const LeavePage: React.FC = () => {
           </Space>
         )}
       </Drawer>
-    </Space>
+    </div>
   )
 }
 

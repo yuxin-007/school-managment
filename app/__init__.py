@@ -1,16 +1,16 @@
-from datetime import datetime
-
 from flask import Flask, jsonify
 from flask_login import current_user
+from flask_wtf.csrf import CSRFError
 
-from app.blueprints import announcement, attendance, auth, course, grade, leave, log, main, notification, organization, user
-from app.config import Config
+from app.blueprints import announcement, assignment, attendance, auth, course, grade, leave, log, main, notification, organization, user
+from app.config import Config, validate_runtime_config
 from app.extensions import cors, csrf, db, login_manager, migrate
 
 
 def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
+    validate_runtime_config(app)
 
     db.init_app(app)
     login_manager.init_app(app)
@@ -24,14 +24,18 @@ def create_app(config_class=Config):
     def unauthorized():
         return jsonify({'success': False, 'message': '请先登录'}), 401
 
+    @app.errorhandler(CSRFError)
+    def handle_csrf_error(error):
+        return jsonify({'success': False, 'message': error.description or 'CSRF 验证失败，请刷新页面后重试'}), 400
+
     cors.init_app(
         app,
         supports_credentials=True,
         origins=[
             'http://localhost:3000',
             'http://127.0.0.1:3000',
-            'http://localhost:5173',
-            'http://127.0.0.1:5173',
+            'http://localhost:3100',
+            'http://127.0.0.1:3100',
         ],
     )
 
@@ -48,7 +52,7 @@ def create_app(config_class=Config):
     def load_user(user_id):
         from app.models import User
 
-        return User.query.get(int(user_id))
+        return db.session.get(User, int(user_id))
 
     for blueprint in [
         auth.bp,
@@ -57,6 +61,7 @@ def create_app(config_class=Config):
         user.bp,
         leave.bp,
         course.bp,
+        assignment.bp,
         log.bp,
         announcement.bp,
         notification.bp,
@@ -64,27 +69,7 @@ def create_app(config_class=Config):
         grade.bp,
     ]:
         app.register_blueprint(blueprint)
-        csrf.exempt(blueprint)
 
-    @app.template_global()
-    def now():
-        return datetime.now()
-
-    @app.template_global()
-    def t(key):
-        return key
-
-    @app.context_processor
-    def inject_globals():
-        lang = getattr(app, '_current_user_lang', 'zh-CN')
-        return {
-            'page_lang': lang,
-            't': lambda key: t(key),
-        }
-
-    with app.app_context():
-        from app import models  # noqa: F401
-
-        db.create_all()
+    from app import models  # noqa: F401
 
     return app

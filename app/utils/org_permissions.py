@@ -8,14 +8,6 @@ ROLE_COLLEGE_ADMIN = 'college_admin'
 ROLE_STAFF = 'staff'
 ROLE_STUDENT = 'student'
 
-ROLE_NAMES = {
-    ROLE_SUPER_ADMIN: '系统管理员',
-    ROLE_COLLEGE_ADMIN: '学院管理员',
-    ROLE_STAFF: '教职工',
-    ROLE_STUDENT: '学生',
-}
-
-
 NODE_TYPE_SYSTEM = 'system'
 NODE_TYPE_SCHOOL = 'school'
 NODE_TYPE_COLLEGE = 'college'
@@ -188,16 +180,6 @@ def can_see_organization(role: str | None) -> bool:
     return role in {ROLE_SUPER_ADMIN, ROLE_COLLEGE_ADMIN}
 
 
-def get_user_primary_node_type(user) -> str | None:
-    if user.role == ROLE_STAFF:
-        return NODE_TYPE_STAFF
-    if user.role == ROLE_STUDENT:
-        return NODE_TYPE_STUDENT
-    if user.role == ROLE_COLLEGE_ADMIN:
-        return NODE_TYPE_COLLEGE
-    return None
-
-
 def can_assign_to_node_type(user_role: str | None, target_node_type: str | None, assign_target_role=None) -> bool:
     normalized_target = normalize_node_type(target_node_type)
 
@@ -247,6 +229,3 @@ def get_college_admin_scope(user) -> list[int]:
             scope.update(get_all_child_ids(relation.node))
     return sorted(scope)
 
-
-def is_node_in_scope(node_id: int, scope_ids: list[int]) -> bool:
-    return node_id in set(scope_ids)

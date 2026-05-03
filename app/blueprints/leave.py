@@ -1,6 +1,6 @@
 ﻿from datetime import date, datetime
 
-from flask import Blueprint, jsonify, redirect, request
+from flask import Blueprint, jsonify, request
 from flask_login import current_user, login_required
 
 from app.extensions import db
@@ -10,9 +10,6 @@ from app.services.access_scope_service import can_manage_user_in_scope, get_scop
 from app.utils.org_permissions import ROLE_COLLEGE_ADMIN, ROLE_STUDENT, ROLE_SUPER_ADMIN
 
 bp = Blueprint('leave', __name__, url_prefix='/leave')
-
-FRONTEND_URL = ''
-
 
 def get_primary_relation(user):
     return next((relation for relation in getattr(user, 'user_organizations', []) if relation.is_primary and relation.node), None)
@@ -184,12 +181,6 @@ def can_assign_leave_to_target(application, approval_node, target_user):
     return any(relation.node_id == approval_node.id for relation in getattr(target_user, 'user_organizations', []))
 
 
-@bp.route('/')
-@login_required
-def index():
-    return redirect(FRONTEND_URL + '/leave')
-
-
 @bp.route('/api/types')
 @login_required
 def get_types():
@@ -306,6 +297,7 @@ def create_application():
         notification_type='leave_pending',
         related_id=application.id,
         related_type='LeaveApplication',
+        commit=True,
     )
 
     return jsonify({'success': True, 'message': '请假申请已提交，并已通知审批人。'})
@@ -314,7 +306,7 @@ def create_application():
 @bp.route('/api/applications/<int:app_id>/approve', methods=['POST'])
 @login_required
 def approve(app_id):
-    application = LeaveApplication.query.get_or_404(app_id)
+    application = db.get_or_404(LeaveApplication, app_id)
     if application.current_approver_id != current_user.id:
         return jsonify({'success': False, 'message': '当前账号无权审批该申请。'}), 403
     if application.status != 'pending':
@@ -347,6 +339,7 @@ def approve(app_id):
         notification_type='leave_approved',
         related_id=application.id,
         related_type='LeaveApplication',
+        commit=True,
     )
 
     return jsonify({'success': True, 'message': '请假申请已批准。'})
@@ -355,7 +348,7 @@ def approve(app_id):
 @bp.route('/api/applications/<int:app_id>/reject', methods=['POST'])
 @login_required
 def reject(app_id):
-    application = LeaveApplication.query.get_or_404(app_id)
+    application = db.get_or_404(LeaveApplication, app_id)
     if application.current_approver_id != current_user.id:
         return jsonify({'success': False, 'message': '当前账号无权审批该申请。'}), 403
     if application.status != 'pending':
@@ -388,6 +381,7 @@ def reject(app_id):
         notification_type='leave_rejected',
         related_id=application.id,
         related_type='LeaveApplication',
+        commit=True,
     )
 
     return jsonify({'success': True, 'message': '请假申请已驳回。'})
@@ -399,7 +393,7 @@ def get_transfer_options(app_id):
     if current_user.role != ROLE_SUPER_ADMIN:
         return jsonify({'success': False, 'message': '只有系统管理员可以转交审批。'}), 403
 
-    application = LeaveApplication.query.get_or_404(app_id)
+    application = db.get_or_404(LeaveApplication, app_id)
     if application.status != 'pending':
         return jsonify({'success': False, 'message': '只有待审批申请才能转交。'}), 400
 
@@ -427,7 +421,7 @@ def transfer(app_id):
     if current_user.role != ROLE_SUPER_ADMIN:
         return jsonify({'success': False, 'message': '只有系统管理员可以转交审批。'}), 403
 
-    application = LeaveApplication.query.get_or_404(app_id)
+    application = db.get_or_404(LeaveApplication, app_id)
     if application.status != 'pending':
         return jsonify({'success': False, 'message': '只有待审批申请才能转交。'}), 400
 
@@ -438,7 +432,7 @@ def transfer(app_id):
     if not target_user_id:
         return jsonify({'success': False, 'message': '请选择新的审批人。'}), 400
 
-    target_user = User.query.get(target_user_id)
+    target_user = db.session.get(User, target_user_id)
     if not target_user:
         return jsonify({'success': False, 'message': '目标审批人不存在。'}), 404
 
@@ -492,6 +486,7 @@ def transfer(app_id):
         notification_type='leave_transfer',
         related_id=application.id,
         related_type='LeaveApplication',
+        commit=True,
     )
 
     create_notification(
@@ -501,6 +496,7 @@ def transfer(app_id):
         notification_type='leave_transfer',
         related_id=application.id,
         related_type='LeaveApplication',
+        commit=True,
     )
 
     if previous_approver and previous_approver.id not in {target_user.id, current_user.id}:
@@ -511,6 +507,7 @@ def transfer(app_id):
             notification_type='leave_transfer',
             related_id=application.id,
             related_type='LeaveApplication',
+            commit=True,
         )
 
     return jsonify({'success': True, 'message': '审批人已更新，系统已同步发送通知。'})
@@ -519,7 +516,7 @@ def transfer(app_id):
 @bp.route('/api/applications/<int:app_id>/cancel', methods=['POST'])
 @login_required
 def cancel(app_id):
-    application = LeaveApplication.query.get_or_404(app_id)
+    application = db.get_or_404(LeaveApplication, app_id)
     if application.staff_id != current_user.id:
         return jsonify({'success': False, 'message': '只能取消自己的请假申请。'}), 403
 
@@ -544,6 +541,7 @@ def cancel(app_id):
             notification_type='leave_cancelled',
             related_id=application.id,
             related_type='LeaveApplication',
+            commit=True,
         )
 
     return jsonify(
@@ -558,7 +556,7 @@ def cancel(app_id):
 @bp.route('/api/applications/<int:app_id>', methods=['GET'])
 @login_required
 def get_detail(app_id):
-    application = LeaveApplication.query.get_or_404(app_id)
+    application = db.get_or_404(LeaveApplication, app_id)
     can_view = (
         application.staff_id == current_user.id
         or application.current_approver_id == current_user.id

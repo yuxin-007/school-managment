@@ -1,4 +1,5 @@
-﻿import React, { useEffect, useMemo, useState } from 'react'
+import { getApiErrorMessage } from '@/lib/errors'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Alert,
   Badge,
@@ -23,12 +24,12 @@ import {
   CheckOutlined,
   DeleteOutlined,
   MailOutlined,
-  NotificationOutlined,
   RightOutlined,
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
+import { useI18n } from '@/lib/i18n'
 import {
   deleteNotification,
   getNotifications,
@@ -66,23 +67,10 @@ const typeColorMap: Record<string, string> = {
   system: 'default',
 }
 
-const typeDisplayMap: Record<string, string> = {
-  leave_pending: '待审批请假',
-  leave_transfer: '审批已转交',
-  leave_approved: '请假已通过',
-  leave_rejected: '请假已驳回',
-  leave_cancelled: '请假已取消',
-  course_change: '课程变动',
-  course_selected: '选课成功',
-  course_dropped: '课程退选',
-  announcement: '公告通知',
-  grade_published: '成绩发布',
-  system: '系统通知',
-}
-
 const NotificationsPage: React.FC = () => {
   const navigate = useNavigate()
   const { user } = useAuthStore()
+  const { notificationTypeLabel, t } = useI18n()
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
   const [loading, setLoading] = useState(false)
   const [actingId, setActingId] = useState<number | null>(null)
@@ -100,7 +88,7 @@ const NotificationsPage: React.FC = () => {
   ) => {
     setLoading(true)
     try {
-      const params: Record<string, any> = { page: 1, per_page: 100 }
+      const params: Record<string, string | number | boolean | undefined> = { page: 1, per_page: 100 }
       if (nextReadFilter !== 'all') {
         params.is_read = nextReadFilter
       }
@@ -116,7 +104,7 @@ const NotificationsPage: React.FC = () => {
         setNotifications(res.data.data || [])
       }
     } catch {
-      message.error('加载通知失败')
+      message.error(t('notifications.toast.loadFailed'))
     } finally {
       setLoading(false)
     }
@@ -129,13 +117,15 @@ const NotificationsPage: React.FC = () => {
         setUnreadCount(res.data.data?.unread_count || res.data.data?.unread || 0)
       }
     } catch {
-      message.error('加载未读通知数量失败')
+      message.error(t('notifications.toast.unreadFailed'))
     }
   }
 
   useEffect(() => {
     loadNotifications()
     loadUnreadCount()
+    // Initial notification center load; item actions refresh data explicitly.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const handleMarkAsRead = async (id: number, silent = false) => {
@@ -144,7 +134,7 @@ const NotificationsPage: React.FC = () => {
       const res = await markAsRead(id)
       if (res.data.success) {
         if (!silent) {
-          message.success(res.data.message || '通知已标记为已读')
+          message.success(res.data.message || t('notifications.toast.markRead'))
         }
         setNotifications((current) =>
           current.map((item) => (item.id === id ? { ...item, is_read: true, read_at: dayjs().format('YYYY-MM-DD HH:mm:ss') } : item)),
@@ -154,9 +144,9 @@ const NotificationsPage: React.FC = () => {
         )
         await loadUnreadCount()
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       if (!silent) {
-        message.error(error.response?.data?.message || '标记已读失败')
+        message.error(getApiErrorMessage(error, t('notifications.toast.markReadFailed')))
       }
     } finally {
       setActingId(null)
@@ -167,11 +157,11 @@ const NotificationsPage: React.FC = () => {
     try {
       const res = await markAllAsRead()
       if (res.data.success) {
-        message.success(res.data.message || '全部已标记为已读')
+        message.success(res.data.message || t('notifications.toast.markAll'))
         await Promise.all([loadNotifications(), loadUnreadCount()])
       }
-    } catch (error: any) {
-      message.error(error.response?.data?.message || '标记全部已读失败')
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, t('notifications.toast.markAllFailed')))
     }
   }
 
@@ -180,7 +170,7 @@ const NotificationsPage: React.FC = () => {
     try {
       const res = await deleteNotification(id)
       if (res.data.success) {
-        message.success(res.data.message || '通知已删除')
+        message.success(res.data.message || t('notifications.toast.delete'))
         setNotifications((current) => current.filter((item) => item.id !== id))
         setSelectedNotification((current) => (current?.id === id ? null : current))
         if (detailVisible && selectedNotification?.id === id) {
@@ -188,8 +178,8 @@ const NotificationsPage: React.FC = () => {
         }
         await loadUnreadCount()
       }
-    } catch (error: any) {
-      message.error(error.response?.data?.message || '删除通知失败')
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error, t('notifications.toast.deleteFailed')))
     } finally {
       setActingId(null)
     }
@@ -204,7 +194,10 @@ const NotificationsPage: React.FC = () => {
   }
 
   const getTypeColor = (type: string) => typeColorMap[type] || 'default'
-  const getTypeDisplay = (type: string) => typeDisplayMap[type] || type
+  const getTypeDisplay = useCallback(
+    (type: string, fallback?: string) => notificationTypeLabel(type, fallback),
+    [notificationTypeLabel],
+  )
 
   const typeOptions = useMemo(() => {
     const types = Array.from(new Set(notifications.map((item) => item.notification_type)))
@@ -212,7 +205,7 @@ const NotificationsPage: React.FC = () => {
       label: getTypeDisplay(type),
       value: type,
     }))
-  }, [notifications])
+  }, [getTypeDisplay, notifications])
 
   const stats = useMemo(() => {
     return {
@@ -229,16 +222,19 @@ const NotificationsPage: React.FC = () => {
     }
 
     if (item.notification_type.startsWith('leave_') || item.related_type === 'LeaveApplication') {
-      return { label: '打开请假管理', path: '/leave' }
+      return { label: t('notifications.target.leave'), path: '/leave' }
+    }
+    if (item.notification_type.startsWith('assignment_')) {
+      return { label: t('notifications.target.assignments'), path: '/course-assignments' }
     }
     if (item.notification_type.startsWith('course_')) {
-      return { label: '打开课程模块', path: user?.role === 'student' ? '/course-selection' : '/courses' }
+      return { label: t('notifications.target.course'), path: user?.role === 'student' ? '/course-selection' : '/courses' }
     }
     if (item.notification_type === 'announcement') {
-      return { label: '打开公告中心', path: '/announcements' }
+      return { label: t('notifications.target.announcements'), path: '/announcements' }
     }
     if (item.notification_type === 'grade_published') {
-      return { label: '打开成绩页面', path: user?.role === 'student' ? '/my-grades' : '/grade-entry' }
+      return { label: t('notifications.target.grades'), path: user?.role === 'student' ? '/my-grades' : '/grade-entry' }
     }
     return null
   }
@@ -250,14 +246,14 @@ const NotificationsPage: React.FC = () => {
       <Card bordered={false} style={{ borderRadius: 24 }}>
         <Space direction="vertical" size={10} style={{ width: '100%' }}>
           <Space wrap>
-            <Text type="secondary">消息通知</Text>
-            {unreadCount > 0 ? <Tag color="red">未读 {unreadCount}</Tag> : <Tag color="green">已全部处理</Tag>}
+            <Text type="secondary">{t('notifications.titleSmall')}</Text>
+            {unreadCount > 0 ? <Tag color="red">{t('notifications.unreadTag', { count: unreadCount })}</Tag> : <Tag color="green">{t('notifications.doneTag')}</Tag>}
           </Space>
           <Title level={3} style={{ margin: 0 }}>
-            集中查看提醒、结果通知和业务变更
+            {t('notifications.title')}
           </Title>
           <Paragraph type="secondary" style={{ marginBottom: 0, maxWidth: 900 }}>
-            这里汇总请假、课程、公告和系统消息，支持筛选未读通知并直接进入对应业务页面。
+            {t('notifications.description')}
           </Paragraph>
         </Space>
       </Card>
@@ -265,22 +261,22 @@ const NotificationsPage: React.FC = () => {
       <Row gutter={[16, 16]}>
         <Col xs={12} lg={6}>
           <Card bordered={false} style={{ borderRadius: 18 }}>
-            <Statistic title="当前列表" value={stats.total} prefix={<BellOutlined />} />
+            <Statistic title={t('notifications.stats.total')} value={stats.total} prefix={<BellOutlined />} />
           </Card>
         </Col>
         <Col xs={12} lg={6}>
           <Card bordered={false} style={{ borderRadius: 18 }}>
-            <Statistic title="未读通知" value={unreadCount} prefix={<MailOutlined />} valueStyle={{ color: '#cf1322' }} />
+            <Statistic title={t('notifications.stats.unread')} value={unreadCount} prefix={<MailOutlined />} valueStyle={{ color: '#cf1322' }} />
           </Card>
         </Col>
         <Col xs={12} lg={6}>
           <Card bordered={false} style={{ borderRadius: 18 }}>
-            <Statistic title="请假相关" value={stats.leave} valueStyle={{ color: '#1677ff' }} />
+            <Statistic title={t('notifications.stats.leave')} value={stats.leave} valueStyle={{ color: '#1677ff' }} />
           </Card>
         </Col>
         <Col xs={12} lg={6}>
           <Card bordered={false} style={{ borderRadius: 18 }}>
-            <Statistic title="公告提醒" value={stats.announcement} valueStyle={{ color: '#722ed1' }} />
+            <Statistic title={t('notifications.stats.announcement')} value={stats.announcement} valueStyle={{ color: '#722ed1' }} />
           </Card>
         </Col>
       </Row>
@@ -289,10 +285,10 @@ const NotificationsPage: React.FC = () => {
         <Alert
           type="warning"
           showIcon
-          message={`当前还有 ${unreadCount} 条未读通知`}
+          message={t('notifications.alert', { count: unreadCount })}
           action={
             <Button type="primary" size="small" onClick={handleMarkAllAsRead}>
-              全部标为已读
+              {t('notifications.markAll')}
             </Button>
           }
         />
@@ -304,7 +300,7 @@ const NotificationsPage: React.FC = () => {
             <Space wrap>
               <Input.Search
                 allowClear
-                placeholder="搜索通知标题或内容"
+                placeholder={t('notifications.searchPlaceholder')}
                 style={{ width: 280 }}
                 value={keyword}
                 onChange={(event) => setKeyword(event.target.value)}
@@ -321,9 +317,9 @@ const NotificationsPage: React.FC = () => {
                 }}
                 style={{ width: 160 }}
                 options={[
-                  { label: '全部状态', value: 'all' },
-                  { label: '仅看未读', value: 'false' },
-                  { label: '仅看已读', value: 'true' },
+                  { label: t('notifications.readFilter.all'), value: 'all' },
+                  { label: t('notifications.readFilter.unread'), value: 'false' },
+                  { label: t('notifications.readFilter.read'), value: 'true' },
                 ]}
               />
               <Select
@@ -333,17 +329,17 @@ const NotificationsPage: React.FC = () => {
                   loadNotifications(readFilter, value, keyword)
                 }}
                 style={{ width: 180 }}
-                options={[{ label: '全部类型', value: 'all' }, ...typeOptions]}
+                options={[{ label: t('notifications.typeFilter.all'), value: 'all' }, ...typeOptions]}
               />
             </Space>
-            <Text type="secondary">当前展示 {notifications.length} 条通知</Text>
+            <Text type="secondary">{t('notifications.currentCount', { count: notifications.length })}</Text>
           </Space>
 
           <List
             itemLayout="vertical"
             loading={loading}
             dataSource={notifications}
-            locale={{ emptyText: <Empty description="暂无通知" image={Empty.PRESENTED_IMAGE_SIMPLE} /> }}
+            locale={{ emptyText: <Empty description={t('notifications.empty')} image={Empty.PRESENTED_IMAGE_SIMPLE} /> }}
             renderItem={(item) => (
               <List.Item
                 key={item.id}
@@ -357,7 +353,7 @@ const NotificationsPage: React.FC = () => {
                 actions={[
                   <Space key="meta" wrap>
                     <Tag color={getTypeColor(item.notification_type)}>{item.type_display || getTypeDisplay(item.notification_type)}</Tag>
-                    {!item.is_read ? <Tag color="blue">未读</Tag> : <Tag>已读</Tag>}
+                    {!item.is_read ? <Tag color="blue">{t('notifications.unread')}</Tag> : <Tag>{t('notifications.read')}</Tag>}
                     <Text type="secondary">{dayjs(item.created_at).format('YYYY-MM-DD HH:mm')}</Text>
                   </Space>,
                   <Space key="actions" wrap>
@@ -369,21 +365,15 @@ const NotificationsPage: React.FC = () => {
                         loading={actingId === item.id}
                         onClick={() => handleMarkAsRead(item.id)}
                       >
-                        标为已读
+                        {t('notifications.markRead')}
                       </Button>
                     ) : null}
                     <Button type="link" size="small" onClick={() => openDetail(item)}>
-                      查看详情
+                      {t('common.viewDetails')}
                     </Button>
-                    <Popconfirm title="确定删除这条通知？" onConfirm={() => handleDelete(item.id)}>
-                      <Button
-                        type="link"
-                        size="small"
-                        danger
-                        icon={<DeleteOutlined />}
-                        loading={actingId === item.id}
-                      >
-                        删除
+                    <Popconfirm title={t('notifications.deleteConfirm')} onConfirm={() => handleDelete(item.id)}>
+                      <Button type="link" size="small" danger icon={<DeleteOutlined />} loading={actingId === item.id}>
+                        {t('common.delete')}
                       </Button>
                     </Popconfirm>
                   </Space>,
@@ -410,7 +400,7 @@ const NotificationsPage: React.FC = () => {
       </Card>
 
       <Drawer
-        title="通知详情"
+        title={t('notifications.detail')}
         open={detailVisible}
         onClose={() => setDetailVisible(false)}
         width={680}
@@ -441,29 +431,29 @@ const NotificationsPage: React.FC = () => {
                   <Tag color={getTypeColor(selectedNotification.notification_type)}>
                     {selectedNotification.type_display || getTypeDisplay(selectedNotification.notification_type)}
                   </Tag>
-                  {!selectedNotification.is_read ? <Tag color="blue">未读</Tag> : <Tag>已读</Tag>}
+                  {!selectedNotification.is_read ? <Tag color="blue">{t('notifications.unread')}</Tag> : <Tag>{t('notifications.read')}</Tag>}
                 </Space>
                 <Text type="secondary">
-                  创建时间：{dayjs(selectedNotification.created_at).format('YYYY-MM-DD HH:mm:ss')}
+                  {t('notifications.createdAt', { time: dayjs(selectedNotification.created_at).format('YYYY-MM-DD HH:mm:ss') })}
                 </Text>
               </Space>
             </Card>
 
-            <Card bordered={false} title="通知内容">
+            <Card bordered={false} title={t('notifications.content')}>
               <Paragraph style={{ marginBottom: 12, whiteSpace: 'pre-wrap' }}>{selectedNotification.content}</Paragraph>
               <Space wrap>
                 {selectedNotification.read_at ? (
-                  <Tag icon={<CheckOutlined />}>已读时间：{selectedNotification.read_at}</Tag>
+                  <Tag icon={<CheckOutlined />}>{t('notifications.readAt', { time: selectedNotification.read_at })}</Tag>
                 ) : (
-                  <Tag color="blue">当前仍未读</Tag>
+                  <Tag color="blue">{t('notifications.stillUnread')}</Tag>
                 )}
-                {selectedNotification.related_type ? <Tag>关联类型：{selectedNotification.related_type}</Tag> : null}
-                {selectedNotification.related_id ? <Tag>关联记录：{selectedNotification.related_id}</Tag> : null}
+                {selectedNotification.related_type ? <Tag>{t('notifications.relatedType', { type: selectedNotification.related_type })}</Tag> : null}
+                {selectedNotification.related_id ? <Tag>{t('notifications.relatedRecord', { id: selectedNotification.related_id })}</Tag> : null}
               </Space>
             </Card>
           </Space>
         ) : (
-          <Empty description="暂无通知详情" />
+          <Empty description={t('notifications.emptyDetail')} />
         )}
       </Drawer>
     </Space>
@@ -471,11 +461,3 @@ const NotificationsPage: React.FC = () => {
 }
 
 export default NotificationsPage
-
-
-
-
-
-
-
-

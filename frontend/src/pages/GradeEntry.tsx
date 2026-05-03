@@ -1,6 +1,7 @@
-﻿import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
+import { getScoreColor } from '@/lib/gradeUtils'
 import {
-  Card, Table, Button, Space, Modal, Form, InputNumber, Select,
+  Card, Table, Button, Space, InputNumber, Select,
   Tag, message, Typography, Row, Col, Statistic
 } from 'antd'
 import {
@@ -12,7 +13,7 @@ import {
   getTeacherCourses, getCourseStudents, saveGrade, getGradeStats
 } from '@/api'
 
-const { Title, Text } = Typography
+const { Text } = Typography
 
 interface StudentGrade {
   student_id: number
@@ -58,7 +59,7 @@ const GradeEntryPage: React.FC = () => {
       if (res.data.success) {
         setCourses(res.data.data || [])
       }
-    } catch (error) {
+    } catch {
       message.error('加载课程失败')
     }
   }
@@ -69,7 +70,7 @@ const GradeEntryPage: React.FC = () => {
       if (res.data.success) {
         setStats(res.data.data)
       }
-    } catch (error) {
+    } catch {
       console.error('加载统计失败')
     }
   }
@@ -88,7 +89,7 @@ const GradeEntryPage: React.FC = () => {
       if (res.data.success) {
         setStudents(res.data.data || [])
       }
-    } catch (error) {
+    } catch {
       message.error('加载学生列表失败')
     } finally {
       setLoading(false)
@@ -144,7 +145,7 @@ const GradeEntryPage: React.FC = () => {
       } else {
         message.error(res.data.message || '保存失败')
       }
-    } catch (error) {
+    } catch {
       message.error('保存失败')
     } finally {
       setSaving(false)
@@ -172,18 +173,9 @@ const GradeEntryPage: React.FC = () => {
       } else {
         message.error(res.data.message || '操作失败')
       }
-    } catch (error) {
+    } catch {
       message.error('操作失败')
     }
-  }
-
-  const getScoreColor = (score: number | null) => {
-    if (score === null) return 'default'
-    if (score >= 90) return 'green'
-    if (score >= 80) return 'cyan'
-    if (score >= 70) return 'blue'
-    if (score >= 60) return 'orange'
-    return 'red'
   }
 
   const columns: ColumnsType<StudentGrade> = [

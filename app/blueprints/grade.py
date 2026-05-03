@@ -1,38 +1,15 @@
 ﻿from datetime import datetime
 
-from flask import Blueprint, jsonify, request, redirect
+from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
 
 from app.extensions import db
 from app.models import Grade, Course, CourseSelection
-from app.services.access_scope_service import can_view_course, get_manageable_course_ids
+from app.services.access_scope_service import can_manage_course, get_manageable_course_ids
 from app.utils.org_permissions import ROLE_COLLEGE_ADMIN, ROLE_STAFF, ROLE_SUPER_ADMIN
+from app.utils.response import paginated_response
 
 bp = Blueprint('grade', __name__, url_prefix='/grade')
-
-FRONTEND_URL = ''
-
-
-def can_manage_grade_course(course):
-    if current_user.role == ROLE_SUPER_ADMIN:
-        return True
-    if current_user.role == ROLE_COLLEGE_ADMIN:
-        return course.id in get_manageable_course_ids(current_user)
-    return course.teacher_id == current_user.id
-
-
-@bp.route('/')
-@login_required
-def index():
-    return redirect(FRONTEND_URL + '/my-grades')
-
-
-@bp.route('/entry')
-@login_required
-def entry():
-    if current_user.role not in [ROLE_SUPER_ADMIN, ROLE_COLLEGE_ADMIN, ROLE_STAFF]:
-        return jsonify({'success': False, 'message': '权限不足。'}), 403
-    return redirect(FRONTEND_URL + '/grade-entry')
 
 
 @bp.route('/api/grades/my')
@@ -46,25 +23,14 @@ def get_my_grades():
     query = Grade.query.filter_by(student_id=current_user.id, is_published=True)
     pagination = query.order_by(Grade.created_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
 
-    return jsonify({
-        'success': True,
-        'data': [item.to_dict() for item in pagination.items],
-        'pagination': {
-            'page': page,
-            'per_page': per_page,
-            'total': pagination.total,
-            'pages': pagination.pages,
-            'has_next': pagination.has_next,
-            'has_prev': pagination.has_prev
-        }
-    })
+    return paginated_response(pagination, lambda item: item.to_dict())
 
 
 @bp.route('/api/grades/course/<int:course_id>')
 @login_required
 def get_course_grades(course_id):
-    course = Course.query.get_or_404(course_id)
-    if not can_manage_grade_course(course):
+    course = db.get_or_404(Course, course_id)
+    if not can_manage_course(current_user, course):
         return jsonify({'success': False, 'message': '当前账号无权查看该课程成绩。'}), 403
 
     grades = Grade.query.filter_by(course_id=course_id).order_by(Grade.student_id).all()
@@ -100,8 +66,8 @@ def get_teacher_courses():
 @bp.route('/api/grades/course/<int:course_id>/students')
 @login_required
 def get_course_students(course_id):
-    course = Course.query.get_or_404(course_id)
-    if not can_manage_grade_course(course):
+    course = db.get_or_404(Course, course_id)
+    if not can_manage_course(current_user, course):
         return jsonify({'success': False, 'message': '当前账号无权查看该课程学生。'}), 403
 
     selections = CourseSelection.query.filter_by(course_id=course_id, status='selected').all()
@@ -139,8 +105,8 @@ def create_or_update_grade():
     if not student_id or not course_id:
         return jsonify({'success': False, 'message': '参数不完整。'}), 400
 
-    course = Course.query.get_or_404(course_id)
-    if not can_manage_grade_course(course):
+    course = db.get_or_404(Course, course_id)
+    if not can_manage_course(current_user, course):
         return jsonify({'success': False, 'message': '当前账号无权维护该课程成绩。'}), 403
 
     grade = Grade.query.filter_by(student_id=student_id, course_id=course_id, grade_type=grade_type).first()
@@ -177,7 +143,8 @@ def create_or_update_grade():
         target_id=grade.id,
         target_name=f"{course.name} - {grade.student.real_name if grade.student else ''}",
         detail=f'成绩: {score}',
-        ip_address=request.remote_addr
+        ip_address=request.remote_addr,
+        commit=True,
     )
 
     from app.blueprints.notification import create_notification
@@ -188,7 +155,8 @@ def create_or_update_grade():
             content=f'您的课程《{course.name}》成绩已发布：{score} 分。',
             notification_type='grade_published',
             related_id=grade.id,
-            related_type='Grade'
+            related_type='Grade',
+            commit=True,
         )
 
     return jsonify({'success': True, 'data': grade.to_dict(), 'message': '成绩保存成功。'})
@@ -200,9 +168,9 @@ def delete_grade(grade_id):
     if current_user.role not in [ROLE_SUPER_ADMIN, ROLE_COLLEGE_ADMIN]:
         return jsonify({'success': False, 'message': '权限不足。'}), 403
 
-    grade = Grade.query.get_or_404(grade_id)
-    course = Course.query.get_or_404(grade.course_id)
-    if not can_manage_grade_course(course):
+    grade = db.get_or_404(Grade, grade_id)
+    course = db.get_or_404(Course, grade.course_id)
+    if not can_manage_course(current_user, course):
         return jsonify({'success': False, 'message': '当前账号无权删除该成绩。'}), 403
 
     db.session.delete(grade)

@@ -1,6 +1,6 @@
 ﻿from __future__ import annotations
 
-from flask import Blueprint, jsonify, redirect, request
+from flask import Blueprint, jsonify, request
 from flask_login import current_user, login_required
 
 from app.extensions import db
@@ -15,7 +15,6 @@ from app.services.organization_service import (
     get_node_user_summary,
     get_organization_overview,
     serialize_node_users,
-    sync_organization_chains,
 )
 from app.utils.org_permissions import (
     ROLE_COLLEGE_ADMIN,
@@ -24,15 +23,13 @@ from app.utils.org_permissions import (
     ROLE_SUPER_ADMIN,
     can_be_assigned_to_node,
     can_see_organization,
+    get_all_child_ids,
     get_node_type_meta,
     normalize_node_type,
     validate_child_node_type,
 )
 
 bp = Blueprint('organization', __name__, url_prefix='/organization')
-
-FRONTEND_URL = ''
-
 
 def parse_node_id(raw_value):
     if raw_value in (None, '', 'null'):
@@ -150,12 +147,24 @@ def create_user_relation_for_node(user: User, node: OrganizationNode, role_in_no
     return relation
 
 
-@bp.route('/')
-@login_required
-def index():
-    if not can_see_organization(current_user.role):
-        return redirect("/")
-    return redirect(f'{FRONTEND_URL}/organization')
+def validate_removable_relation(relation: UserOrganization, target_user: User | None):
+    if relation.is_primary:
+        return False, '当前节点是该人员的主组织，请先调整主组织后再移除。', 400
+
+    descendant_ids = get_all_child_ids(relation.node)
+    if descendant_ids:
+        child_relation = (
+            UserOrganization.query.filter(
+                UserOrganization.user_id == relation.user_id,
+                UserOrganization.node_id.in_(descendant_ids),
+            )
+            .first()
+        )
+        if child_relation:
+            user_name = target_user.real_name if target_user else str(relation.user_id)
+            return False, f'成员“{user_name}”仍归属于当前节点的下级节点，请先移除下级节点关系。', 400
+
+    return True, None, None
 
 
 @bp.route('/api/tree')
@@ -164,7 +173,6 @@ def get_tree():
     if not can_see_organization(current_user.role):
         return jsonify({'success': False, 'message': '当前账号无权访问组织架构。'}), 403
 
-    sync_organization_chains()
     return jsonify({'success': True, 'data': build_tree_for_user(current_user)})
 
 
@@ -174,7 +182,6 @@ def get_overview():
     if not can_see_organization(current_user.role):
         return jsonify({'success': False, 'message': '当前账号无权访问组织架构。'}), 403
 
-    sync_organization_chains()
     return jsonify({'success': True, 'data': get_organization_overview(current_user)})
 
 
@@ -196,7 +203,7 @@ def add_node():
         return jsonify({'success': False, 'message': '节点类型不能为空。'}), 400
 
     parent_id = parse_node_id(data.get('parent_id'))
-    parent_node = OrganizationNode.query.get(parent_id) if parent_id else None
+    parent_node = db.session.get(OrganizationNode, parent_id) if parent_id else None
 
     if parent_node is None and node_type != 'system':
         system_root = OrganizationNode.query.filter_by(node_type='system').first()
@@ -258,7 +265,7 @@ def update_node(node_id):
     if not user_can_manage_organization():
         return jsonify({'success': False, 'message': '当前账号无权编辑组织节点。'}), 403
 
-    node = OrganizationNode.query.get_or_404(node_id)
+    node = db.get_or_404(OrganizationNode, node_id)
     allowed, error_message = ensure_parent_node_manageable(node)
     if not allowed:
         return jsonify({'success': False, 'message': error_message}), 403
@@ -291,7 +298,7 @@ def delete_node(node_id):
     if not user_can_manage_organization():
         return jsonify({'success': False, 'message': '当前账号无权删除组织节点。'}), 403
 
-    node = OrganizationNode.query.get_or_404(node_id)
+    node = db.get_or_404(OrganizationNode, node_id)
     allowed, error_message = ensure_parent_node_manageable(node)
     if not allowed:
         return jsonify({'success': False, 'message': error_message}), 403
@@ -314,7 +321,7 @@ def move_node(node_id):
     if not user_can_manage_organization():
         return jsonify({'success': False, 'message': '当前账号无权调整组织节点顺序。'}), 403
 
-    node = OrganizationNode.query.get_or_404(node_id)
+    node = db.get_or_404(OrganizationNode, node_id)
     allowed, error_message = ensure_parent_node_manageable(node)
     if not allowed:
         return jsonify({'success': False, 'message': error_message}), 403
@@ -365,12 +372,11 @@ def get_node_users(node_id):
     if not can_see_organization(current_user.role):
         return jsonify({'success': False, 'message': '当前账号无权访问组织架构。'}), 403
 
-    sync_organization_chains()
     allowed, error_message = ensure_node_accessible(node_id)
     if not allowed:
         return jsonify({'success': False, 'message': error_message}), 403
 
-    node = OrganizationNode.query.get_or_404(node_id)
+    node = db.get_or_404(OrganizationNode, node_id)
     return jsonify({
         'success': True,
         'data': serialize_node_users(node.id),
@@ -403,8 +409,8 @@ def assign_user():
     if not allowed:
         return jsonify({'success': False, 'message': error_message}), 403
 
-    user = User.query.get(user_id)
-    node = OrganizationNode.query.get(node_id)
+    user = db.session.get(User, user_id)
+    node = db.session.get(OrganizationNode, node_id)
     if not node:
         return jsonify({'success': False, 'message': '人员或节点不存在。'}), 404
     allowed_assign, error_message, status_code = validate_assignable_user_for_node(user, node)
@@ -439,7 +445,7 @@ def assign_users_batch():
     if not allowed:
         return jsonify({'success': False, 'message': error_message}), 403
 
-    node = OrganizationNode.query.get(node_id)
+    node = db.session.get(OrganizationNode, node_id)
     if not node:
         return jsonify({'success': False, 'message': '目标节点不存在。'}), 404
 
@@ -482,13 +488,17 @@ def remove_user(user_id):
     if not allowed:
         return jsonify({'success': False, 'message': error_message}), 403
 
-    target_user = User.query.get(user_id)
+    target_user = db.session.get(User, user_id)
     if current_user.role == ROLE_COLLEGE_ADMIN and target_user and target_user.role == ROLE_COLLEGE_ADMIN:
         return jsonify({'success': False, 'message': '学院管理员账号只能由系统管理员调整。'}), 403
 
     relation = UserOrganization.query.filter_by(user_id=user_id, node_id=node_id).first()
     if not relation:
         return jsonify({'success': False, 'message': '该人员不在当前节点中。'}), 404
+
+    removable, message_text, status_code = validate_removable_relation(relation, target_user)
+    if not removable:
+        return jsonify({'success': False, 'message': message_text}), status_code
 
     db.session.delete(relation)
     db.session.commit()
@@ -536,6 +546,10 @@ def remove_users_batch():
             user_name = target_user.real_name if target_user else str(user_id)
             return jsonify({'success': False, 'message': f'成员“{user_name}”不在当前节点中。'}), 404
 
+        removable, message_text, status_code = validate_removable_relation(relation_map[user_id], target_user)
+        if not removable:
+            return jsonify({'success': False, 'message': message_text}), status_code
+
     for relation in relations:
         db.session.delete(relation)
 
@@ -553,9 +567,8 @@ def remove_users_batch():
 @bp.route('/api/users/options')
 @login_required
 def get_user_options():
-    sync_organization_chains()
     node_id = parse_node_id(request.args.get('node_id'))
-    target_node = OrganizationNode.query.get(node_id) if node_id else None
+    target_node = db.session.get(OrganizationNode, node_id) if node_id else None
 
     if target_node:
         allowed, error_message = ensure_node_accessible(target_node.id)
@@ -569,6 +582,6 @@ def get_user_options():
 @login_required
 def get_assignable_node_types():
     parent_id = parse_node_id(request.args.get('parent_id'))
-    parent_node = OrganizationNode.query.get(parent_id) if parent_id else None
+    parent_node = db.session.get(OrganizationNode, parent_id) if parent_id else None
     node_types = get_creatable_node_types(current_user, parent_node)
     return jsonify({'success': True, 'data': node_types})

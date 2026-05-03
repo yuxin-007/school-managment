@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { getScoreColor } from '@/lib/gradeUtils'
 import {
   Card, Table, Tag, message, Typography, Row, Col, Statistic, Empty
 } from 'antd'
@@ -9,7 +10,7 @@ import type { ColumnsType } from 'antd/es/table'
 import { useAuthStore } from '@/store/authStore'
 import { getMyGrades } from '@/api'
 
-const { Title, Text } = Typography
+const { Text } = Typography
 
 interface GradeItem {
   id: number
@@ -49,7 +50,7 @@ const MyGradesPage: React.FC = () => {
           total: res.data.pagination?.total || 0
         }))
       }
-    } catch (error) {
+    } catch {
       message.error('加载成绩失败')
     } finally {
       setLoading(false)
@@ -58,19 +59,12 @@ const MyGradesPage: React.FC = () => {
 
   useEffect(() => {
     loadGrades()
+    // Reload on role availability; page changes call loadGrades with an explicit page.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isStudent])
 
   const handlePageChange = (page: number) => {
     loadGrades(page)
-  }
-
-  const getScoreColor = (score: number | null) => {
-    if (score === null) return 'default'
-    if (score >= 90) return 'green'
-    if (score >= 80) return 'cyan'
-    if (score >= 70) return 'blue'
-    if (score >= 60) return 'orange'
-    return 'red'
   }
 
   const getGradeTypeTag = (type: string) => {

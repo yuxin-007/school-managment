@@ -1,7 +1,6 @@
 ﻿from datetime import date, datetime
-from math import asin, cos, radians, sin, sqrt
 
-from flask import Blueprint, jsonify, redirect, request
+from flask import Blueprint, jsonify, request
 from flask_login import current_user, login_required
 
 from app.extensions import db
@@ -14,6 +13,8 @@ from app.models import (
     User,
 )
 from app.services.access_scope_service import get_scope_user_ids
+from app.services.location import calculate_distance_meters
+from app.utils.response import paginated_response
 from app.utils.org_permissions import (
     NODE_TYPE_COLLEGE,
     NODE_TYPE_SCHOOL,
@@ -25,7 +26,6 @@ from app.utils.permissions import college_admin_or_super_admin_required
 
 bp = Blueprint('attendance', __name__, url_prefix='/attendance')
 
-FRONTEND_URL = ''
 MANAGER_KEYWORDS = ['负责', '管理', '主管', 'admin', 'manager', 'leader']
 
 
@@ -49,16 +49,6 @@ def parse_rule_time(value, field_label):
         return datetime.strptime(value, '%H:%M').time()
     except (TypeError, ValueError):
         raise ValueError(f'{field_label} 格式无效，请使用 HH:MM。')
-
-
-def calculate_distance_meters(lat1, lon1, lat2, lon2):
-    earth_radius = 6371000
-    lat1_rad, lon1_rad = radians(lat1), radians(lon1)
-    lat2_rad, lon2_rad = radians(lat2), radians(lon2)
-    delta_lat = lat2_rad - lat1_rad
-    delta_lon = lon2_rad - lon1_rad
-    haversine = sin(delta_lat / 2) ** 2 + cos(lat1_rad) * cos(lat2_rad) * sin(delta_lon / 2) ** 2
-    return 2 * earth_radius * asin(sqrt(haversine))
 
 
 def get_primary_relation(user):
@@ -261,6 +251,7 @@ def send_notification(user_id, title, content, notification_type, related_id):
         notification_type=notification_type,
         related_id=related_id,
         related_type='AttendanceSupplementRequest',
+        commit=True,
     )
 
 
@@ -275,6 +266,7 @@ def log_supplement_action(user_id, action, supplement_request, detail, ip_addres
         target_name=f'{supplement_request.attendance_date.strftime("%Y-%m-%d")} {supplement_request.get_type_display()}',
         detail=detail,
         ip_address=ip_address,
+        commit=True,
     )
 
 
@@ -362,19 +354,6 @@ def apply_supplement_rejection(supplement_request, approver, comments, ip_addres
     )
 
 
-@bp.route('/')
-@login_required
-def index():
-    return redirect(FRONTEND_URL + '/attendance')
-
-
-@bp.route('/manage')
-@login_required
-@college_admin_or_super_admin_required
-def manage():
-    return redirect(FRONTEND_URL + '/attendance-manage')
-
-
 @bp.route('/api/clock-in', methods=['POST'])
 @login_required
 def clock_in():
@@ -412,6 +391,7 @@ def clock_in():
         target_id=attendance.id,
         target_name=today.strftime('%Y-%m-%d'),
         ip_address=request.remote_addr,
+        commit=True,
     )
 
     return jsonify({
@@ -457,6 +437,7 @@ def clock_out():
         target_id=attendance.id,
         target_name=today.strftime('%Y-%m-%d'),
         ip_address=request.remote_addr,
+        commit=True,
     )
 
     return jsonify({
@@ -498,18 +479,7 @@ def get_my_attendance():
         query = query.filter(Attendance.attendance_date <= datetime.strptime(end_date, '%Y-%m-%d').date())
 
     pagination = query.order_by(Attendance.attendance_date.desc()).paginate(page=page, per_page=per_page, error_out=False)
-    return jsonify({
-        'success': True,
-        'data': [item.to_dict() for item in pagination.items],
-        'pagination': {
-            'page': page,
-            'per_page': per_page,
-            'total': pagination.total,
-            'pages': pagination.pages,
-            'has_next': pagination.has_next,
-            'has_prev': pagination.has_prev,
-        },
-    })
+    return paginated_response(pagination, lambda item: item.to_dict())
 
 
 @bp.route('/api/attendance/all')
@@ -536,18 +506,7 @@ def get_all_attendance():
         query = query.filter(Attendance.attendance_date <= datetime.strptime(end_date, '%Y-%m-%d').date())
 
     pagination = query.order_by(Attendance.attendance_date.desc()).paginate(page=page, per_page=per_page, error_out=False)
-    return jsonify({
-        'success': True,
-        'data': [item.to_dict() for item in pagination.items],
-        'pagination': {
-            'page': page,
-            'per_page': per_page,
-            'total': pagination.total,
-            'pages': pagination.pages,
-            'has_next': pagination.has_next,
-            'has_prev': pagination.has_prev,
-        },
-    })
+    return paginated_response(pagination, lambda item: item.to_dict())
 
 
 @bp.route('/api/attendance/stats')
@@ -575,7 +534,7 @@ def get_stats():
 @login_required
 @college_admin_or_super_admin_required
 def update_attendance(att_id):
-    attendance = Attendance.query.get_or_404(att_id)
+    attendance = db.get_or_404(Attendance, att_id)
     if attendance.user_id not in set(get_attendance_scope_ids()):
         return jsonify({'success': False, 'message': '当前账号无权修改该考勤记录。'}), 403
 
@@ -708,7 +667,7 @@ def create_supplement_request():
 @bp.route('/api/supplements/<int:request_id>/cancel', methods=['POST'])
 @login_required
 def cancel_supplement_request(request_id):
-    supplement_request = AttendanceSupplementRequest.query.get_or_404(request_id)
+    supplement_request = db.get_or_404(AttendanceSupplementRequest, request_id)
     if supplement_request.user_id != current_user.id:
         return jsonify({'success': False, 'message': '只能撤回本人提交的补签申请。'}), 403
     if supplement_request.status != 'pending':
@@ -754,7 +713,7 @@ def cancel_supplement_request(request_id):
 @bp.route('/api/supplements/<int:request_id>/approve', methods=['POST'])
 @login_required
 def approve_supplement(request_id):
-    supplement_request = AttendanceSupplementRequest.query.get_or_404(request_id)
+    supplement_request = db.get_or_404(AttendanceSupplementRequest, request_id)
     if supplement_request.status != 'pending':
         return jsonify({'success': False, 'message': '该补签申请已处理，请刷新后重试。'}), 400
     if not can_review_supplement_request(supplement_request):
@@ -773,7 +732,7 @@ def approve_supplement(request_id):
 @bp.route('/api/supplements/<int:request_id>/reject', methods=['POST'])
 @login_required
 def reject_supplement(request_id):
-    supplement_request = AttendanceSupplementRequest.query.get_or_404(request_id)
+    supplement_request = db.get_or_404(AttendanceSupplementRequest, request_id)
     if supplement_request.status != 'pending':
         return jsonify({'success': False, 'message': '该补签申请已处理，请刷新后重试。'}), 400
     if not can_review_supplement_request(supplement_request):
