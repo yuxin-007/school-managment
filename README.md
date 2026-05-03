@@ -168,7 +168,3 @@ npm run build
 - `MAIL_USE_SSL`
 - `MAIL_USE_TLS`
 - `MAIL_SUPPRESS_SEND`
-
-## 仓库说明
-
-仓库仅保留与系统本身相关的代码、配置示例、迁移脚本和测试，不包含本地环境文件、构建缓存和开发临时产物。
